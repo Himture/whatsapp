@@ -1,26 +1,84 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@theme {
+  --font-sans: var(--font-inter), "Inter", -apple-system, system-ui, "Segoe UI",
+    Helvetica, "Apple Color Emoji", Arial, "Segoe UI Emoji", "Segoe UI Symbol",
+    sans-serif;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-near-black: rgba(0, 0, 0, 0.95);
+  --color-notion-blue: #0075de;
+  --color-active-blue: #005bab;
+  --color-focus-blue: #097fe8;
+  --color-deep-navy: #213183;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-warm-white: #f6f5f4;
+  --color-warm-dark: #31302e;
+  --color-warm-500: #615d59;
+  --color-warm-300: #a39e98;
+
+  --color-success: #2a9d99;
+  --color-confirm: #1aae39;
+  --color-warning: #dd5b00;
+  --color-danger: #dc2626;
+  --color-pink-accent: #ff64c8;
+  --color-purple-accent: #391c57;
+
+  --color-badge-bg: #f2f9ff;
+  --color-badge-text: #097fe8;
+
+  --color-input-border: #dddddd;
+
+  --shadow-card: rgba(0, 0, 0, 0.04) 0px 4px 18px,
+    rgba(0, 0, 0, 0.027) 0px 2.025px 7.84688px,
+    rgba(0, 0, 0, 0.02) 0px 0.8px 2.925px,
+    rgba(0, 0, 0, 0.01) 0px 0.175px 1.04062px;
+  --shadow-deep: rgba(0, 0, 0, 0.01) 0px 1px 3px,
+    rgba(0, 0, 0, 0.02) 0px 3px 7px, rgba(0, 0, 0, 0.02) 0px 7px 15px,
+    rgba(0, 0, 0, 0.04) 0px 14px 28px, rgba(0, 0, 0, 0.05) 0px 23px 52px;
+
+  --radius-micro: 4px;
+  --radius-subtle: 5px;
+  --radius-standard: 8px;
+  --radius-comfortable: 12px;
+  --radius-large: 16px;
+  --radius-pill: 9999px;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  color: var(--color-near-black);
+  background-color: #ffffff;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-feature-settings: "lnum", "locl";
+}
+
+.border-whisper {
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+*:focus-visible {
+  outline: 2px solid var(--color-focus-blue);
+  outline-offset: 2px;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-warm-300);
+  border-radius: var(--radius-pill);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-warm-500);
 }
