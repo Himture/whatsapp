@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, useEffect } from "react";
+import { createContext, useContext, useCallback, useSyncExternalStore } from "react";
 import type { JSX, ReactNode } from "react";
 import { clearKey } from "@/lib/crypto";
 
@@ -8,6 +8,7 @@ export type SessionMode = "local" | "authenticated" | "none";
 type HydratedMode = SessionMode | "loading";
 
 const STORAGE_KEY = "session-mode";
+const STORAGE_EVENT = "session-mode-change";
 
 interface SessionModeContextValue {
   mode: HydratedMode;
@@ -26,34 +27,49 @@ export function useSessionMode(): SessionModeContextValue {
   return ctx;
 }
 
-export function SessionModeProvider({ children }: { children: ReactNode }): JSX.Element {
-  // Start as "loading" to match SSR output, then read localStorage on mount.
-  // Reading storage during useState init would cause a hydration mismatch.
-  const [mode, setMode] = useState<HydratedMode>("loading");
+function readStoredMode(): SessionMode {
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored === "local" || stored === "authenticated") return stored;
+  return "none";
+}
 
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === "local" || stored === "authenticated") {
-      setMode(stored);
-    } else {
-      setMode("none");
-    }
-  }, []);
+function subscribe(onChange: () => void): () => void {
+  window.addEventListener(STORAGE_EVENT, onChange);
+  window.addEventListener("storage", onChange);
+  return () => {
+    window.removeEventListener(STORAGE_EVENT, onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
+
+function notifyChange(): void {
+  window.dispatchEvent(new Event(STORAGE_EVENT));
+}
+
+export function SessionModeProvider({ children }: { children: ReactNode }): JSX.Element {
+  // useSyncExternalStore returns the server snapshot ("loading") during SSR
+  // and the client snapshot (localStorage-backed) after hydration. This
+  // avoids the hydration mismatch we'd get from reading storage in useState init.
+  const mode = useSyncExternalStore<HydratedMode>(
+    subscribe,
+    readStoredMode,
+    () => "loading",
+  );
 
   const enterLocalMode = useCallback(() => {
     localStorage.setItem(STORAGE_KEY, "local");
-    setMode("local");
+    notifyChange();
   }, []);
 
   const enterAuthenticatedMode = useCallback(() => {
     localStorage.setItem(STORAGE_KEY, "authenticated");
-    setMode("authenticated");
+    notifyChange();
   }, []);
 
   const signOutAll = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
     clearKey();
-    setMode("none");
+    notifyChange();
   }, []);
 
   return (
