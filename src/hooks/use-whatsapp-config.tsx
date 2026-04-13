@@ -40,9 +40,11 @@ export function WhatsAppConfigProvider({ children }: { children: ReactNode }): J
   const [activeConfigId, setActiveConfigId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const storeMode = mode === "authenticated" ? "remote" as const : "local" as const;
+  const storeMode: "remote" | "local" | null =
+    mode === "authenticated" ? "remote" : mode === "local" ? "local" : null;
 
   const refresh = useCallback(async () => {
+    if (!storeMode) return;
     try {
       const store = getDataStore(storeMode);
       const data = await store.getConfigs();
@@ -58,10 +60,11 @@ export function WhatsAppConfigProvider({ children }: { children: ReactNode }): J
   }, [storeMode]);
 
   useEffect(() => {
+    if (!storeMode) return;
     startTransition(() => {
       void refresh();
     });
-  }, [refresh]);
+  }, [refresh, storeMode]);
 
   const activeEntry = configs.find((c) => c.id === activeConfigId);
   const activeConfig: WhatsAppClientConfig | null = activeEntry

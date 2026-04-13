@@ -12,9 +12,13 @@ interface HeaderProps {
   onMenuToggle?: () => void;
 }
 
+function AuthenticatedEmail() {
+  const { data: session } = useSession();
+  return <>{session?.user?.email}</>;
+}
+
 export function Header({ onMenuToggle }: HeaderProps) {
   const router = useRouter();
-  const { data: session } = useSession();
   const { configs, activeConfigId, setActiveConfigId, loading } =
     useWhatsAppConfig();
   const { mode, signOutAll } = useSessionMode();
@@ -63,7 +67,7 @@ export function Header({ onMenuToggle }: HeaderProps) {
               Local Mode
             </span>
           ) : (
-            session?.user?.email
+            <AuthenticatedEmail />
           )}
         </span>
       </div>

@@ -13,34 +13,42 @@ interface DashboardShellProps {
   children: ReactNode;
 }
 
+function AuthenticatedGate({ children }: { children: ReactNode }) {
+  const { data: session, isPending } = useSession();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isPending && !session) {
+      router.replace(ROUTES.LOGIN);
+    }
+  }, [session, isPending, router]);
+
+  if (isPending || !session) {
+    return null;
+  }
+
+  return <>{children}</>;
+}
+
 function AuthGate({ children }: { children: ReactNode }) {
   const { mode } = useSessionMode();
-  const { data: session, isPending } = useSession();
   const router = useRouter();
 
   useEffect(() => {
     if (mode === "none") {
       router.replace(ROUTES.LOGIN);
-      return;
     }
-    if (mode === "authenticated" && !isPending && !session) {
-      router.replace(ROUTES.LOGIN);
-    }
-  }, [mode, session, isPending, router]);
+  }, [mode, router]);
 
-  if (mode === "none") {
+  if (mode === "loading" || mode === "none") {
     return null;
   }
 
-  if (mode === "authenticated" && isPending) {
-    return null;
+  if (mode === "local") {
+    return <>{children}</>;
   }
 
-  if (mode === "authenticated" && !session) {
-    return null;
-  }
-
-  return <>{children}</>;
+  return <AuthenticatedGate>{children}</AuthenticatedGate>;
 }
 
 export function DashboardShell({ children }: DashboardShellProps) {

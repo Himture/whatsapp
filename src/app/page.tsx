@@ -10,6 +10,7 @@ export default function HomePage() {
   const { mode } = useSessionMode();
 
   useEffect(() => {
+    if (mode === "loading") return;
     if (mode === "local" || mode === "authenticated") {
       router.replace(ROUTES.DASHBOARD);
     } else {
