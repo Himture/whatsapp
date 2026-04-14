@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, startTransition } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dropdown } from "@/components/ui/dropdown";
@@ -8,23 +8,9 @@ import { Card, CardContent, CardTitle, CardDescription } from "@/components/ui/c
 import { Badge } from "@/components/ui/badge";
 import { API_VERSIONS, type ApiVersion } from "@/lib/constants";
 import { maskToken } from "@/lib/utils";
-import {
-  getConfigs,
-  createConfig,
-  deleteConfig,
-  setDefaultConfig,
-} from "./actions";
-
-interface WhatsAppConfigRow {
-  id: string;
-  name: string;
-  accessToken: string;
-  phoneNumberId: string;
-  wabaId: string;
-  businessPortfolioId: string | null;
-  apiVersion: string;
-  isDefault: boolean;
-}
+import { useWhatsAppConfig } from "@/hooks/use-whatsapp-config";
+import { useSessionMode } from "@/lib/session-mode";
+import { getDataStore, type ConfigRecord } from "@/lib/datastore";
 
 interface Toast {
   message: string;
@@ -34,9 +20,9 @@ interface Toast {
 const VERSION_OPTIONS = API_VERSIONS.map((v) => ({ label: v, value: v }));
 
 export default function SettingsPage() {
-  const [configs, setConfigs] = useState<WhatsAppConfigRow[]>([]);
+  const { mode } = useSessionMode();
+  const { configs, loading, refresh } = useWhatsAppConfig();
   const [showForm, setShowForm] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
@@ -48,22 +34,8 @@ export default function SettingsPage() {
   const [businessPortfolioId, setBusinessPortfolioId] = useState("");
   const [apiVersion, setApiVersion] = useState<ApiVersion>("v21.0");
 
-  const loadConfigs = useCallback(async () => {
-    try {
-      const data = await getConfigs();
-      setConfigs(data);
-    } catch {
-      setError("Failed to load configurations");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    startTransition(() => {
-      void loadConfigs();
-    });
-  }, [loadConfigs]);
+  const storeMode: "remote" | "local" | null =
+    mode === "authenticated" ? "remote" : mode === "local" ? "local" : null;
 
   useEffect(() => {
     if (toast === null) return;
@@ -87,10 +59,12 @@ export default function SettingsPage() {
 
   async function handleCreate(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (!storeMode) return;
     setSaving(true);
     setError(null);
 
-    const result = await createConfig({
+    const store = getDataStore(storeMode);
+    const result = await store.createConfig({
       name,
       accessToken,
       phoneNumberId,
@@ -101,7 +75,7 @@ export default function SettingsPage() {
 
     if (result.success) {
       resetForm();
-      await loadConfigs();
+      await refresh();
     } else {
       setError(result.error ?? "Failed to create configuration");
     }
@@ -110,24 +84,28 @@ export default function SettingsPage() {
   }
 
   async function handleDelete(configId: string) {
-    const result = await deleteConfig(configId);
+    if (!storeMode) return;
+    const store = getDataStore(storeMode);
+    const result = await store.deleteConfig(configId);
     if (result.success) {
-      await loadConfigs();
+      await refresh();
     } else {
       setError(result.error ?? "Failed to delete");
     }
   }
 
   async function handleSetDefault(configId: string) {
-    const result = await setDefaultConfig(configId);
+    if (!storeMode) return;
+    const store = getDataStore(storeMode);
+    const result = await store.setDefaultConfig(configId);
     if (result.success) {
-      await loadConfigs();
+      await refresh();
     } else {
       setError(result.error ?? "Failed to set default");
     }
   }
 
-  async function handleTestConnection(config: WhatsAppConfigRow) {
+  async function handleTestConnection(config: ConfigRecord) {
     try {
       const url = `https://graph.facebook.com/${config.apiVersion}/${config.wabaId}/phone_numbers`;
       const res = await fetch(url, {
