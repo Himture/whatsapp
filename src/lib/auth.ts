@@ -1,5 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { nextCookies } from "better-auth/next-js";
+import { headers } from "next/headers";
 import { getDb } from "@/db";
 
 function createAuth() {
@@ -22,9 +24,13 @@ function createAuth() {
       },
     },
     session: {
-      expiresIn: 60 * 60 * 24 * 7, // 7 days
-      updateAge: 60 * 60 * 24, // 1 day
+      expiresIn: 60 * 60 * 24 * 7,
+      updateAge: 60 * 60 * 24,
     },
+    trustedOrigins: process.env.BETTER_AUTH_TRUSTED_ORIGINS
+      ? process.env.BETTER_AUTH_TRUSTED_ORIGINS.split(",").map((o) => o.trim())
+      : [],
+    plugins: [nextCookies()],
   });
 }
 
@@ -37,4 +43,23 @@ export function getAuth(): AuthInstance {
     authInstance = createAuth();
   }
   return authInstance;
+}
+
+export type SessionData = AuthInstance["$Infer"]["Session"];
+
+export async function getOptionalSession(): Promise<SessionData | null> {
+  return getAuth().api.getSession({ headers: await headers() });
+}
+
+export async function requireSession(): Promise<SessionData> {
+  const session = await getOptionalSession();
+  if (!session?.user?.id) {
+    throw new Error("Unauthorized");
+  }
+  return session;
+}
+
+export async function requireUserId(): Promise<string> {
+  const { user } = await requireSession();
+  return user.id;
 }

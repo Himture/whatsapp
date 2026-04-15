@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Header } from "@/components/dashboard/header";
+import { DemoBanner } from "@/components/whatsapp/demo-banner";
 import { WhatsAppConfigProvider } from "@/hooks/use-whatsapp-config";
 import { useSessionMode } from "@/lib/session-mode";
 import { useSession } from "@/lib/auth-client";
@@ -64,12 +65,23 @@ export function DashboardShell({ children }: DashboardShellProps) {
 
   return (
     <AuthGate>
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:px-3 focus:py-2 focus:bg-near-black focus:text-white focus:rounded-[var(--radius-micro)]"
+      >
+        Skip to content
+      </a>
       <div className="flex h-screen overflow-hidden">
         <Sidebar open={sidebarOpen} onClose={handleSidebarClose} />
         <div className="flex flex-1 flex-col overflow-hidden">
           <WhatsAppConfigProvider>
+            <DemoBanner />
             <Header onMenuToggle={handleMenuToggle} />
-            <main className="flex-1 overflow-y-auto bg-white p-4 md:p-6">
+            <main
+              id="main-content"
+              tabIndex={-1}
+              className="flex-1 overflow-y-auto bg-white p-4 md:p-6 focus:outline-none"
+            >
               {children}
             </main>
           </WhatsAppConfigProvider>

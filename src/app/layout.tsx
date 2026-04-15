@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { APP_NAME, APP_DESCRIPTION } from "@/lib/constants";
 import { SessionModeProvider } from "@/lib/session-mode";
+import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
 
 const inter = Inter({
@@ -27,6 +28,7 @@ export default function RootLayout({
     <html lang="en" className={`${inter.variable} h-full`}>
       <body className="min-h-full font-sans antialiased">
         <SessionModeProvider>{children}</SessionModeProvider>
+        <Toaster />
       </body>
     </html>
   );

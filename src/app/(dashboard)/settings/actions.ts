@@ -1,37 +1,23 @@
 "use server";
 
-import { headers } from "next/headers";
 import { eq, and } from "drizzle-orm";
-import { getAuth } from "@/lib/auth";
+import { requireUserId } from "@/lib/auth";
 import { getDb } from "@/db";
 import { whatsappConfig } from "@/db/schema";
 import { encrypt, decrypt } from "@/lib/encryption";
-import type { ApiVersion } from "@/lib/constants";
+import { ConfigInputSchema, ConfigUpdateSchema, UuidSchema } from "@/lib/validation";
+import type { z } from "zod";
 
-interface ConfigInput {
-  name: string;
-  accessToken: string;
-  phoneNumberId: string;
-  wabaId: string;
-  businessPortfolioId?: string;
-  apiVersion: ApiVersion;
-}
+type ConfigInput = z.infer<typeof ConfigInputSchema>;
+type ConfigUpdate = z.infer<typeof ConfigUpdateSchema>;
 
 interface ActionResult {
   success: boolean;
   error?: string;
 }
 
-async function getAuthenticatedUserId(): Promise<string> {
-  const session = await getAuth().api.getSession({ headers: await headers() });
-  if (!session?.user?.id) {
-    throw new Error("Unauthorized");
-  }
-  return session.user.id;
-}
-
 export async function getConfigs() {
-  const userId = await getAuthenticatedUserId();
+  const userId = await requireUserId();
 
   const configs = await getDb()
     .select()
@@ -42,12 +28,15 @@ export async function getConfigs() {
   return configs.map((config) => ({
     ...config,
     accessToken: decrypt(config.accessToken),
+    appSecret: config.appSecret ? decrypt(config.appSecret) : null,
+    webhookVerifyToken: config.webhookVerifyToken,
   }));
 }
 
 export async function createConfig(input: ConfigInput): Promise<ActionResult> {
   try {
-    const userId = await getAuthenticatedUserId();
+    const data = ConfigInputSchema.parse(input);
+    const userId = await requireUserId();
 
     const existingConfigs = await getDb()
       .select({ id: whatsappConfig.id })
@@ -58,72 +47,81 @@ export async function createConfig(input: ConfigInput): Promise<ActionResult> {
 
     await getDb().insert(whatsappConfig).values({
       userId,
-      name: input.name,
-      accessToken: encrypt(input.accessToken),
-      phoneNumberId: input.phoneNumberId,
-      wabaId: input.wabaId,
-      businessPortfolioId: input.businessPortfolioId ?? null,
-      apiVersion: input.apiVersion,
+      name: data.name,
+      accessToken: encrypt(data.accessToken),
+      phoneNumberId: data.phoneNumberId,
+      wabaId: data.wabaId,
+      businessPortfolioId: data.businessPortfolioId ?? null,
+      apiVersion: data.apiVersion,
+      displayName: data.displayName ?? null,
+      brandColor: data.brandColor ?? null,
+      appSecret: data.appSecret ? encrypt(data.appSecret) : null,
       isDefault: isFirst,
+      // A unique token the user registers in Meta's webhook settings.
+      // Meta sends it back on each request so we can verify authenticity.
+      webhookVerifyToken: crypto.randomUUID(),
     });
 
     return { success: true };
   } catch (error) {
     console.error("Failed to create config:", error);
-    return { success: false, error: "Failed to create configuration" };
+    return { success: false, error: errorMessage(error, "Failed to create configuration") };
   }
 }
 
 export async function updateConfig(
   configId: string,
-  input: Partial<ConfigInput>,
+  input: ConfigUpdate,
 ): Promise<ActionResult> {
   try {
-    const userId = await getAuthenticatedUserId();
+    const id = UuidSchema.parse(configId);
+    const data = ConfigUpdateSchema.parse(input);
+    const userId = await requireUserId();
 
     const values: Record<string, unknown> = { updatedAt: new Date() };
 
-    if (input.name !== undefined) values.name = input.name;
-    if (input.accessToken !== undefined) values.accessToken = encrypt(input.accessToken);
-    if (input.phoneNumberId !== undefined) values.phoneNumberId = input.phoneNumberId;
-    if (input.wabaId !== undefined) values.wabaId = input.wabaId;
-    if (input.businessPortfolioId !== undefined) values.businessPortfolioId = input.businessPortfolioId;
-    if (input.apiVersion !== undefined) values.apiVersion = input.apiVersion;
+    if (data.name !== undefined) values.name = data.name;
+    if (data.accessToken !== undefined) values.accessToken = encrypt(data.accessToken);
+    if (data.phoneNumberId !== undefined) values.phoneNumberId = data.phoneNumberId;
+    if (data.wabaId !== undefined) values.wabaId = data.wabaId;
+    if (data.businessPortfolioId !== undefined) values.businessPortfolioId = data.businessPortfolioId ?? null;
+    if (data.apiVersion !== undefined) values.apiVersion = data.apiVersion;
+    if (data.displayName !== undefined) values.displayName = data.displayName ?? null;
+    if (data.brandColor !== undefined) values.brandColor = data.brandColor ?? null;
+    if (data.appSecret !== undefined) values.appSecret = data.appSecret ? encrypt(data.appSecret) : null;
 
     await getDb()
       .update(whatsappConfig)
       .set(values)
-      .where(
-        and(eq(whatsappConfig.id, configId), eq(whatsappConfig.userId, userId)),
-      );
+      .where(and(eq(whatsappConfig.id, id), eq(whatsappConfig.userId, userId)));
 
     return { success: true };
   } catch (error) {
     console.error("Failed to update config:", error);
-    return { success: false, error: "Failed to update configuration" };
+    return { success: false, error: errorMessage(error, "Failed to update configuration") };
   }
 }
 
 export async function deleteConfig(configId: string): Promise<ActionResult> {
   try {
-    const userId = await getAuthenticatedUserId();
+    const id = UuidSchema.parse(configId);
+    const userId = await requireUserId();
 
     await getDb()
       .delete(whatsappConfig)
-      .where(
-        and(eq(whatsappConfig.id, configId), eq(whatsappConfig.userId, userId)),
-      );
+      .where(and(eq(whatsappConfig.id, id), eq(whatsappConfig.userId, userId)));
 
     return { success: true };
   } catch (error) {
     console.error("Failed to delete config:", error);
-    return { success: false, error: "Failed to delete configuration" };
+    return { success: false, error: errorMessage(error, "Failed to delete configuration") };
   }
 }
 
 export async function setDefaultConfig(configId: string): Promise<ActionResult> {
   try {
-    const userId = await getAuthenticatedUserId();
+    const id = UuidSchema.parse(configId);
+    const userId = await requireUserId();
 
     await getDb()
       .update(whatsappConfig)
@@ -133,13 +131,17 @@ export async function setDefaultConfig(configId: string): Promise<ActionResult> 
     await getDb()
       .update(whatsappConfig)
       .set({ isDefault: true, updatedAt: new Date() })
-      .where(
-        and(eq(whatsappConfig.id, configId), eq(whatsappConfig.userId, userId)),
-      );
+      .where(and(eq(whatsappConfig.id, id), eq(whatsappConfig.userId, userId)));
 
     return { success: true };
   } catch (error) {
     console.error("Failed to set default config:", error);
-    return { success: false, error: "Failed to set default configuration" };
+    return { success: false, error: errorMessage(error, "Failed to set default configuration") };
   }
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.name === "ZodError") return "Invalid input";
+  if (error instanceof Error && error.message === "Unauthorized") return "Unauthorized";
+  return fallback;
 }

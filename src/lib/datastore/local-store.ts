@@ -1,23 +1,10 @@
 "use client";
 
-import { openDB, type IDBPDatabase } from "idb";
 import { encryptValue, decryptValue } from "@/lib/crypto";
+import { getLocalDb } from "@/lib/stores/local/db";
 import type { DataStore, ConfigRecord, ConfigInput, ActionResult } from "./types";
 
-const DB_NAME = "whatsapp-api-manager";
-const DB_VERSION = 1;
 const STORE_NAME = "configs";
-
-async function getDb(): Promise<IDBPDatabase> {
-  return openDB(DB_NAME, DB_VERSION, {
-    upgrade(db) {
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        const store = db.createObjectStore(STORE_NAME, { keyPath: "id" });
-        store.createIndex("isDefault", "isDefault");
-      }
-    },
-  });
-}
 
 interface StoredConfig {
   id: string;
@@ -28,12 +15,19 @@ interface StoredConfig {
   businessPortfolioId: string | null;
   apiVersion: string;
   isDefault: boolean;
+  webhookVerifyToken: string;
+  encryptedAppSecret: string | null;
+  displayName: string | null;
+  brandColor: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
 async function storedToRecord(stored: StoredConfig): Promise<ConfigRecord> {
   const accessToken = await decryptValue(stored.encryptedAccessToken);
+  const appSecret = stored.encryptedAppSecret
+    ? await decryptValue(stored.encryptedAppSecret)
+    : null;
   return {
     id: stored.id,
     name: stored.name,
@@ -43,6 +37,10 @@ async function storedToRecord(stored: StoredConfig): Promise<ConfigRecord> {
     businessPortfolioId: stored.businessPortfolioId,
     apiVersion: stored.apiVersion,
     isDefault: stored.isDefault,
+    webhookVerifyToken: stored.webhookVerifyToken,
+    appSecret,
+    displayName: stored.displayName ?? null,
+    brandColor: stored.brandColor ?? null,
     createdAt: stored.createdAt,
     updatedAt: stored.updatedAt,
   };
@@ -50,7 +48,7 @@ async function storedToRecord(stored: StoredConfig): Promise<ConfigRecord> {
 
 export class LocalStore implements DataStore {
   async getConfigs(): Promise<ConfigRecord[]> {
-    const db = await getDb();
+    const db = await getLocalDb();
     const stored = (await db.getAll(STORE_NAME)) as StoredConfig[];
     const records = await Promise.all(stored.map(storedToRecord));
     return records.sort(
@@ -60,7 +58,7 @@ export class LocalStore implements DataStore {
 
   async createConfig(input: ConfigInput): Promise<ActionResult> {
     try {
-      const db = await getDb();
+      const db = await getLocalDb();
       const allConfigs = (await db.getAll(STORE_NAME)) as StoredConfig[];
       const isFirst = allConfigs.length === 0;
       const now = new Date().toISOString();
@@ -74,6 +72,10 @@ export class LocalStore implements DataStore {
         businessPortfolioId: input.businessPortfolioId ?? null,
         apiVersion: input.apiVersion,
         isDefault: isFirst,
+        webhookVerifyToken: crypto.randomUUID(),
+        encryptedAppSecret: input.appSecret ? await encryptValue(input.appSecret) : null,
+        displayName: input.displayName ?? null,
+        brandColor: input.brandColor ?? null,
         createdAt: now,
         updatedAt: now,
       };
@@ -90,7 +92,7 @@ export class LocalStore implements DataStore {
 
   async updateConfig(configId: string, input: Partial<ConfigInput>): Promise<ActionResult> {
     try {
-      const db = await getDb();
+      const db = await getLocalDb();
       const existing = (await db.get(STORE_NAME, configId)) as StoredConfig | undefined;
       if (!existing) {
         return { success: false, error: "Config not found" };
@@ -111,6 +113,11 @@ export class LocalStore implements DataStore {
         updated.businessPortfolioId = input.businessPortfolioId ?? null;
       }
       if (input.apiVersion !== undefined) updated.apiVersion = input.apiVersion;
+      if (input.displayName !== undefined) updated.displayName = input.displayName ?? null;
+      if (input.brandColor !== undefined) updated.brandColor = input.brandColor ?? null;
+      if (input.appSecret !== undefined) {
+        updated.encryptedAppSecret = input.appSecret ? await encryptValue(input.appSecret) : null;
+      }
 
       await db.put(STORE_NAME, updated);
       return { success: true };
@@ -124,7 +131,7 @@ export class LocalStore implements DataStore {
 
   async deleteConfig(configId: string): Promise<ActionResult> {
     try {
-      const db = await getDb();
+      const db = await getLocalDb();
       await db.delete(STORE_NAME, configId);
       return { success: true };
     } catch (error) {
@@ -137,7 +144,7 @@ export class LocalStore implements DataStore {
 
   async setDefaultConfig(configId: string): Promise<ActionResult> {
     try {
-      const db = await getDb();
+      const db = await getLocalDb();
       const allConfigs = (await db.getAll(STORE_NAME)) as StoredConfig[];
 
       const tx = db.transaction(STORE_NAME, "readwrite");

@@ -1,27 +1,31 @@
 # WhatsApp Cloud API Manager
 
-A browser-based UI for the [WhatsApp Cloud API](https://developers.facebook.com/docs/whatsapp/cloud-api). Works with zero setup — no database, no account, no backend. Every endpoint from the [official Postman collection](https://www.postman.com/meta/whatsapp-business-platform/) is wired up to a form.
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org) [![React](https://img.shields.io/badge/React-19-blue)](https://react.dev) [![TS Strict](https://img.shields.io/badge/TS-strict-blue)](https://www.typescriptlang.org)
+
+A browser-first tool for the [WhatsApp Cloud API](https://developers.facebook.com/docs/whatsapp/cloud-api). Zero setup required — no database, no account, no backend needed to start. Every endpoint from the [official Postman collection](https://www.postman.com/meta/whatsapp-business-platform/) is wired up, plus a full business feature suite: inbox, contacts, broadcasts, templates, flows, analytics, and more.
+
+**For developers:** one-binary, local-first WhatsApp tool. No DB, no accounts, no telemetry. Every Cloud API endpoint behind a typed client. Self-host or build on it — MIT.
+
+**For users:** zero per-message markup. Messages go from your browser straight to `graph.facebook.com` — your tokens never leave your machine, and we never see (or charge for) a single message.
 
 ## Why
 
-The Cloud API is easy to use, but debugging it is not. Most people end up in Postman with 70+ saved requests and a cluttered environment. This is that, but built-in. Drop in your access token, pick a phone number ID, start sending messages.
-
-Your tokens never leave your machine. API calls go from the browser directly to `graph.facebook.com`.
+The Cloud API is powerful but the tooling around it is not. Most people bounce between Postman, a spreadsheet of contacts, a separate broadcast tool, and a dashboard they barely understand. This replaces all of it — and unlike every other WhatsApp platform, it charges nothing per message.
 
 ## Quick start
 
 ```bash
-git clone https://github.com/yourusername/whatsapp.git
-cd whatsapp
+git clone https://github.com/anthropics/whatsapp-api-manager.git
+cd whatsapp-api-manager
 pnpm install
 pnpm dev
 ```
 
-Open `http://localhost:3000`, click **Continue without account**. You're in.
+Open `http://localhost:3000`, click **Continue without account**. You're in. Everything runs locally — configs in IndexedDB, tokens encrypted with Web Crypto.
 
 ## Optional: cloud sync
 
-If you want to sync configs across devices (or run this as a hosted service for a team), add a PostgreSQL database:
+To sync configs and data across devices, or to run this as a hosted service for a team:
 
 ```bash
 cp .env.example .env.local
@@ -34,7 +38,23 @@ Works with Neon, Supabase, Railway, or any Postgres. The connection string is th
 
 ## What's covered
 
-Every endpoint in the official Postman collection, organized into pages:
+### Business features
+
+| Page | What it does |
+|------|--------------|
+| Workspaces | Agency home — grid of all WhatsApp configs with per-workspace stats, click to switch |
+| Inbox | Receive messages via webhook, conversation threads, inline reply (with optimistic updates) |
+| Contacts | Add, import CSV, tag, manage opt-outs, create lists/segments |
+| Broadcasts | Bulk send to contacts or lists, configurable rate limiting, pause/resume, pre-send safety check |
+| Templates | List, create, preview, delete; 10 pre-built presets for common use cases |
+| Flows | Auto-reply rules — keyword match, greeting, first message, any message |
+| Schedule | Queue messages for future delivery |
+| Analytics | Delivery rates with industry benchmarks, broadcast performance, daily volume charts |
+| QR Codes | Generate click-to-chat QR codes with optional pre-filled message |
+
+### API explorer
+
+Every endpoint in the official Postman collection:
 
 | Page | What it does |
 |------|--------------|
@@ -52,6 +72,16 @@ Every endpoint in the official Postman collection, organized into pages:
 
 Every page links to the official WhatsApp docs and the Postman collection for cross-reference.
 
+## Webhook setup
+
+To use the inbox, analytics, and auto-reply features, point your WhatsApp webhook to:
+
+```
+https://your-domain.com/api/webhooks/{configId}
+```
+
+Your verify token and callback URL are shown in Settings next to each configuration. The webhook receiver verifies `X-Hub-Signature-256` if you store your app secret.
+
 ## Stack
 
 - Next.js 16 (App Router, Turbopack)
@@ -61,6 +91,7 @@ Every page links to the official WhatsApp docs and the Postman collection for cr
 - Better Auth (optional, for accounts)
 - IndexedDB via [`idb`](https://github.com/jakearchibald/idb) (default storage)
 - Web Crypto API for client-side AES-256-GCM encryption
+- recharts (analytics charts, dynamically imported)
 
 ## Environment variables
 
@@ -90,11 +121,11 @@ docker run -p 3000:3000 --env-file .env.local whatsapp-manager
 3. Go to **WhatsApp → Getting Started** — copy the Access Token, Phone Number ID, and WABA ID
 4. Paste them into the Settings page
 
-User access tokens expire in 24 hours. For anything real, generate a [System User Access Token](https://developers.facebook.com/docs/whatsapp/business-management-api/get-started#access-tokens) from Business Manager.
+User access tokens expire in 24 hours. For production use, generate a [System User Access Token](https://developers.facebook.com/docs/whatsapp/business-management-api/get-started#access-tokens) from Business Manager.
 
 ## Architecture
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for how the pieces fit together — the DataStore abstraction, the session mode context, how local and cloud modes share the same UI.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for how the pieces fit together — the DataStore abstraction, domain stores, session mode context, webhook receiver, and broadcast engine.
 
 ## Contributing
 

@@ -9,6 +9,10 @@ export interface ConfigRecord {
   businessPortfolioId: string | null;
   apiVersion: string;
   isDefault: boolean;
+  webhookVerifyToken: string;
+  appSecret: string | null;
+  displayName: string | null;
+  brandColor: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -20,6 +24,9 @@ export interface ConfigInput {
   wabaId: string;
   businessPortfolioId?: string;
   apiVersion: ApiVersion;
+  displayName?: string;
+  brandColor?: string;
+  appSecret?: string;
 }
 
 export interface ActionResult {

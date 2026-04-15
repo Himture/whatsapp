@@ -13,8 +13,16 @@
 
   --color-warm-white: #f6f5f4;
   --color-warm-dark: #31302e;
-  --color-warm-500: #615d59;
+  --color-warm-50: #faf9f8;
+  --color-warm-100: #f0eeea;
+  --color-warm-200: #e5e1da;
   --color-warm-300: #a39e98;
+  --color-warm-400: #847f78;
+  --color-warm-500: #615d59;
+  --color-warm-600: #4d4844;
+  --color-warm-700: #3a3633;
+  --color-warm-800: #2a2725;
+  --color-warm-900: #1c1a18;
 
   --color-success: #2a9d99;
   --color-confirm: #1aae39;

@@ -21,6 +21,10 @@ export class RemoteStore implements DataStore {
       businessPortfolioId: c.businessPortfolioId,
       apiVersion: c.apiVersion,
       isDefault: c.isDefault,
+      webhookVerifyToken: c.webhookVerifyToken,
+      appSecret: c.appSecret ?? null,
+      displayName: c.displayName ?? null,
+      brandColor: c.brandColor ?? null,
       createdAt: c.createdAt?.toISOString?.() ?? new Date().toISOString(),
       updatedAt: c.updatedAt?.toISOString?.() ?? new Date().toISOString(),
     }));

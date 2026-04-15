@@ -34,22 +34,24 @@ const MAX_REPLY_BUTTONS = 3;
 
 
 interface ListRow {
+  _key: string;
   id: string;
   title: string;
   description: string;
 }
 
 interface ListSection {
+  _key: string;
   title: string;
   rows: ListRow[];
 }
 
 function createEmptyRow(): ListRow {
-  return { id: "", title: "", description: "" };
+  return { _key: crypto.randomUUID(), id: "", title: "", description: "" };
 }
 
 function createEmptySection(): ListSection {
-  return { title: "", rows: [createEmptyRow()] };
+  return { _key: crypto.randomUUID(), title: "", rows: [createEmptyRow()] };
 }
 
 
@@ -66,22 +68,22 @@ function ListMessageForm() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ApiCallResult | null>(null);
 
-  function updateSection(sectionIdx: number, field: keyof ListSection, value: string) {
+  function updateSection(sectionKey: string, field: "title", value: string) {
     setSections((prev) =>
-      prev.map((section, i) =>
-        i === sectionIdx ? { ...section, [field]: value } : section,
+      prev.map((section) =>
+        section._key === sectionKey ? { ...section, [field]: value } : section,
       ),
     );
   }
 
-  function updateRow(sectionIdx: number, rowIdx: number, field: keyof ListRow, value: string) {
+  function updateRow(sectionKey: string, rowKey: string, field: keyof Omit<ListRow, "_key">, value: string) {
     setSections((prev) =>
-      prev.map((section, si) =>
-        si === sectionIdx
+      prev.map((section) =>
+        section._key === sectionKey
           ? {
               ...section,
-              rows: section.rows.map((row, ri) =>
-                ri === rowIdx ? { ...row, [field]: value } : row,
+              rows: section.rows.map((row) =>
+                row._key === rowKey ? { ...row, [field]: value } : row,
               ),
             }
           : section,
@@ -89,21 +91,21 @@ function ListMessageForm() {
     );
   }
 
-  function addRow(sectionIdx: number) {
+  function addRow(sectionKey: string) {
     setSections((prev) =>
-      prev.map((section, i) =>
-        i === sectionIdx && section.rows.length < MAX_LIST_ROWS_PER_SECTION
+      prev.map((section) =>
+        section._key === sectionKey && section.rows.length < MAX_LIST_ROWS_PER_SECTION
           ? { ...section, rows: [...section.rows, createEmptyRow()] }
           : section,
       ),
     );
   }
 
-  function removeRow(sectionIdx: number, rowIdx: number) {
+  function removeRow(sectionKey: string, rowKey: string) {
     setSections((prev) =>
-      prev.map((section, i) =>
-        i === sectionIdx && section.rows.length > 1
-          ? { ...section, rows: section.rows.filter((_, ri) => ri !== rowIdx) }
+      prev.map((section) =>
+        section._key === sectionKey && section.rows.length > 1
+          ? { ...section, rows: section.rows.filter((row) => row._key !== rowKey) }
           : section,
       ),
     );
@@ -115,9 +117,9 @@ function ListMessageForm() {
     }
   }
 
-  function removeSection(sectionIdx: number) {
+  function removeSection(sectionKey: string) {
     if (sections.length > 1) {
-      setSections((prev) => prev.filter((_, i) => i !== sectionIdx));
+      setSections((prev) => prev.filter((section) => section._key !== sectionKey));
     }
   }
 
@@ -214,7 +216,7 @@ function ListMessageForm() {
 
         {sections.map((section, si) => (
           <div
-            key={si}
+            key={section._key}
             className="rounded-[var(--radius-standard)] border border-[#ddd] p-4 space-y-3"
           >
             <div className="flex items-center justify-between">
@@ -226,7 +228,7 @@ function ListMessageForm() {
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => removeSection(si)}
+                  onClick={() => removeSection(section._key)}
                 >
                   Remove
                 </Button>
@@ -237,12 +239,12 @@ function ListMessageForm() {
               label="Section Title"
               placeholder="e.g. Category A"
               value={section.title}
-              onChange={(e) => updateSection(si, "title", e.target.value)}
+              onChange={(e) => updateSection(section._key, "title", e.target.value)}
               required
             />
 
             {section.rows.map((row, ri) => (
-              <div key={ri} className="ml-4 space-y-2 border-l-2 border-black/5 pl-4">
+              <div key={row._key} className="ml-4 space-y-2 border-l-2 border-black/5 pl-4">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-warm-500">
                     Row {ri + 1}
@@ -252,7 +254,7 @@ function ListMessageForm() {
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={() => removeRow(si, ri)}
+                      onClick={() => removeRow(section._key, row._key)}
                     >
                       Remove
                     </Button>
@@ -262,21 +264,21 @@ function ListMessageForm() {
                   label="Row ID"
                   placeholder="unique-row-id"
                   value={row.id}
-                  onChange={(e) => updateRow(si, ri, "id", e.target.value)}
+                  onChange={(e) => updateRow(section._key, row._key, "id", e.target.value)}
                   required
                 />
                 <Input
                   label="Row Title"
                   placeholder="Row title"
                   value={row.title}
-                  onChange={(e) => updateRow(si, ri, "title", e.target.value)}
+                  onChange={(e) => updateRow(section._key, row._key, "title", e.target.value)}
                   required
                 />
                 <Input
                   label="Row Description"
                   placeholder="Optional description"
                   value={row.description}
-                  onChange={(e) => updateRow(si, ri, "description", e.target.value)}
+                  onChange={(e) => updateRow(section._key, row._key, "description", e.target.value)}
                 />
               </div>
             ))}
@@ -285,7 +287,7 @@ function ListMessageForm() {
               type="button"
               variant="secondary"
               size="sm"
-              onClick={() => addRow(si)}
+              onClick={() => addRow(section._key)}
               disabled={section.rows.length >= MAX_LIST_ROWS_PER_SECTION}
             >
               Add Row
@@ -313,12 +315,13 @@ function ListMessageForm() {
 
 
 interface ReplyButton {
+  _key: string;
   id: string;
   title: string;
 }
 
 function createEmptyButton(): ReplyButton {
-  return { id: "", title: "" };
+  return { _key: crypto.randomUUID(), id: "", title: "" };
 }
 
 
@@ -334,9 +337,9 @@ function ReplyButtonsForm() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ApiCallResult | null>(null);
 
-  function updateButton(idx: number, field: keyof ReplyButton, value: string) {
+  function updateButton(buttonKey: string, field: keyof Omit<ReplyButton, "_key">, value: string) {
     setButtons((prev) =>
-      prev.map((btn, i) => (i === idx ? { ...btn, [field]: value } : btn)),
+      prev.map((btn) => (btn._key === buttonKey ? { ...btn, [field]: value } : btn)),
     );
   }
 
@@ -346,9 +349,9 @@ function ReplyButtonsForm() {
     }
   }
 
-  function removeButton(idx: number) {
+  function removeButton(buttonKey: string) {
     if (buttons.length > 1) {
-      setButtons((prev) => prev.filter((_, i) => i !== idx));
+      setButtons((prev) => prev.filter((btn) => btn._key !== buttonKey));
     }
   }
 
@@ -431,23 +434,23 @@ function ReplyButtonsForm() {
           </Button>
         </div>
 
-        {buttons.map((btn, i) => (
+        {buttons.map((btn) => (
           <div
-            key={i}
+            key={btn._key}
             className="flex items-end gap-3 rounded-[var(--radius-standard)] border border-[#ddd] p-3"
           >
             <Input
               label="Button ID"
               placeholder="unique-btn-id"
               value={btn.id}
-              onChange={(e) => updateButton(i, "id", e.target.value)}
+              onChange={(e) => updateButton(btn._key, "id", e.target.value)}
               required
             />
             <Input
               label="Button Title"
               placeholder="e.g. Yes"
               value={btn.title}
-              onChange={(e) => updateButton(i, "title", e.target.value)}
+              onChange={(e) => updateButton(btn._key, "title", e.target.value)}
               required
             />
             {buttons.length > 1 && (
@@ -455,7 +458,7 @@ function ReplyButtonsForm() {
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={() => removeButton(i)}
+                onClick={() => removeButton(btn._key)}
               >
                 Remove
               </Button>

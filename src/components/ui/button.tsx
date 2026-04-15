@@ -41,7 +41,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         className={cn(
           "inline-flex items-center justify-center gap-2 rounded-[var(--radius-micro)] font-semibold transition-all duration-150",
-          "disabled:opacity-50 disabled:pointer-events-none",
+          "disabled:cursor-not-allowed disabled:bg-warm-100 disabled:text-warm-500 disabled:border-warm-200 disabled:hover:bg-warm-100 disabled:hover:scale-100 disabled:active:scale-100 disabled:shadow-none",
           VARIANT_STYLES[variant],
           variant !== "badge" && SIZE_STYLES[size],
           className,

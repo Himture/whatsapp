@@ -639,3 +639,133 @@ export const migrationApi = {
     });
   },
 };
+
+// ─── Template management ──────────────────────────────────────────────────────
+
+export interface TemplateComponent {
+  type: "HEADER" | "BODY" | "FOOTER" | "BUTTONS";
+  format?: "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT" | "LOCATION";
+  text?: string;
+  buttons?: Array<{
+    type: "QUICK_REPLY" | "URL" | "PHONE_NUMBER" | "COPY_CODE" | "OTP";
+    text: string;
+    url?: string;
+    phone_number?: string;
+  }>;
+  example?: {
+    header_text?: string[];
+    header_handle?: string[];
+    body_text?: string[][];
+  };
+}
+
+export interface TemplateRecord {
+  id: string;
+  name: string;
+  status: "APPROVED" | "PENDING" | "REJECTED" | "PAUSED" | "DISABLED" | "IN_APPEAL";
+  category: "MARKETING" | "UTILITY" | "AUTHENTICATION";
+  language: string;
+  components: TemplateComponent[];
+  quality_score?: { score: string };
+  rejected_reason?: string;
+}
+
+export interface TemplateCreateInput {
+  name: string;
+  language: string;
+  category: "MARKETING" | "UTILITY" | "AUTHENTICATION";
+  components: TemplateComponent[];
+  allow_category_change?: boolean;
+}
+
+export const templatesApi = {
+  list(config: WhatsAppClientConfig, fields = "id,name,status,category,language,components,quality_score,rejected_reason") {
+    return graphFetch<{ data: TemplateRecord[]; paging?: unknown }>(
+      config,
+      `${config.wabaId}/message_templates?fields=${fields}&limit=100`,
+      { method: "GET" },
+    );
+  },
+
+  create(config: WhatsAppClientConfig, input: TemplateCreateInput) {
+    return graphFetch<{ id: string }>(config, `${config.wabaId}/message_templates`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
+
+  update(config: WhatsAppClientConfig, templateId: string, updates: Partial<TemplateCreateInput>) {
+    return graphFetch(config, templateId, {
+      method: "POST",
+      body: JSON.stringify(updates),
+    });
+  },
+
+  // Meta requires deleting by name + language pair.
+  deleteByName(config: WhatsAppClientConfig, name: string, language: string) {
+    return graphFetch(
+      config,
+      `${config.wabaId}/message_templates?name=${encodeURIComponent(name)}&language=${encodeURIComponent(language)}`,
+      { method: "DELETE" },
+    );
+  },
+
+  get(config: WhatsAppClientConfig, templateId: string) {
+    return graphFetch<TemplateRecord>(
+      config,
+      `${templateId}?fields=id,name,status,category,language,components,quality_score,rejected_reason`,
+      { method: "GET" },
+    );
+  },
+};
+
+// ─── Analytics ────────────────────────────────────────────────────────────────
+
+export interface ConversationAnalyticsGranularity {
+  start: number; // Unix timestamp
+  end: number;
+  conversation: number;
+  cost: number;
+}
+
+export const analyticsApi = {
+  // Conversation-based analytics per WABA.
+  // granularity: DAILY | MONTHLY | HALF_HOUR
+  getConversationAnalytics(
+    config: WhatsAppClientConfig,
+    startDate: string,
+    endDate: string,
+    granularity: "DAILY" | "MONTHLY" | "HALF_HOUR" = "DAILY",
+  ) {
+    const params = new URLSearchParams({
+      start: startDate,
+      end: endDate,
+      granularity,
+      dimensions: JSON.stringify(["CONVERSATION_DIRECTION", "CONVERSATION_TYPE"]),
+    });
+    return graphFetch<{ data: ConversationAnalyticsGranularity[] }>(
+      config,
+      `${config.wabaId}/conversation_analytics?${params.toString()}`,
+      { method: "GET" },
+    );
+  },
+
+  // Phone-number-level analytics including delivery rates.
+  getPhoneNumberAnalytics(
+    config: WhatsAppClientConfig,
+    startDate: string,
+    endDate: string,
+  ) {
+    const params = new URLSearchParams({
+      start: startDate,
+      end: endDate,
+      metric_types: JSON.stringify(["SENT", "DELIVERED", "READ"]),
+      granularity: "DAILY",
+    });
+    return graphFetch(
+      config,
+      `${config.phoneNumberId}/analytics?${params.toString()}`,
+      { method: "GET" },
+    );
+  },
+};
