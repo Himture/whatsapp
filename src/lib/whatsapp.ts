@@ -721,31 +721,45 @@ export const templatesApi = {
 
 // ─── Analytics ────────────────────────────────────────────────────────────────
 
-export interface ConversationAnalyticsGranularity {
+// Per-message pricing analytics. This replaced the deprecated `conversation_analytics`
+// field when Meta retired conversation-based pricing on 2025-07-01; on Graph API
+// v25.0+ the old field returns an error. `pricing_analytics` reports cost + volume
+// per pricing category/type and intra-month messaging-tier progress.
+export interface PricingAnalyticsDataPoint {
   start: number; // Unix timestamp
   end: number;
-  conversation: number;
+  volume: number;
   cost: number;
+  pricing_category?: string;
+  pricing_type?: string;
+  tier?: string;
+}
+
+export interface PricingAnalyticsResponse {
+  pricing_analytics?: {
+    data?: Array<{ data_points?: PricingAnalyticsDataPoint[] }>;
+  };
 }
 
 export const analyticsApi = {
-  // Conversation-based analytics per WABA.
-  // granularity: DAILY | MONTHLY | HALF_HOUR
-  getConversationAnalytics(
+  // WABA-level per-message pricing analytics (cost + volume).
+  // `pricing_analytics` is a field on the WABA node, queried via field expansion.
+  // granularity: DAILY | MONTHLY
+  getPricingAnalytics(
     config: WhatsAppClientConfig,
     startDate: string,
     endDate: string,
-    granularity: "DAILY" | "MONTHLY" | "HALF_HOUR" = "DAILY",
+    granularity: "DAILY" | "MONTHLY" = "DAILY",
   ) {
-    const params = new URLSearchParams({
-      start: startDate,
-      end: endDate,
-      granularity,
-      dimensions: JSON.stringify(["CONVERSATION_DIRECTION", "CONVERSATION_TYPE"]),
-    });
-    return graphFetch<{ data: ConversationAnalyticsGranularity[] }>(
+    const field =
+      `pricing_analytics.start(${startDate}).end(${endDate})` +
+      `.granularity(${granularity})` +
+      `.metric_types(["COST","VOLUME"])` +
+      `.dimensions(["PRICING_CATEGORY","PRICING_TYPE","TIER"])`;
+    const params = new URLSearchParams({ fields: field });
+    return graphFetch<PricingAnalyticsResponse>(
       config,
-      `${config.wabaId}/conversation_analytics?${params.toString()}`,
+      `${config.wabaId}?${params.toString()}`,
       { method: "GET" },
     );
   },

@@ -8,7 +8,6 @@ import { LoadingPage } from "@/components/ui/loading";
 import { useSessionMode } from "@/lib/session-mode";
 import { useWhatsAppConfig } from "@/hooks/use-whatsapp-config";
 import { getInboxStore, getBroadcastStore } from "@/lib/stores";
-import { useRequestHistory } from "@/hooks/use-request-history";
 import { ConfigGuard } from "@/components/whatsapp/config-guard";
 import { INDUSTRY_BENCHMARKS } from "@/lib/constants";
 
@@ -61,7 +60,6 @@ function AnalyticsContent() {
   const { mode } = useSessionMode();
   const storeMode = mode === "authenticated" ? "remote" as const : "local" as const;
   const { activeConfigId } = useWhatsAppConfig();
-  const { history } = useRequestHistory();
 
   const [dailyStats, setDailyStats] = useState<DailyStat[]>([]);
   const [broadcastStats, setBroadcastStats] = useState<BroadcastStat[]>([]);
@@ -129,22 +127,11 @@ function AnalyticsContent() {
     startTransition(() => { void load(); });
   }, [load]);
 
-  // Browser-side request history is cheap to scan and doesn't need to trigger
-  // a full reload — derive successful sends here and combine with daily totals.
-  const successCalls = useMemo(
-    () =>
-      history.reduce(
-        (n, h) =>
-          h.status >= 200 && h.status < 300 && h.method === "POST" && h.url.includes("/messages")
-            ? n + 1
-            : n,
-        0,
-      ),
-    [history],
-  );
-
+  // Delivery stats come solely from webhook status events — the single source of
+  // truth. We intentionally do NOT add outbound explorer calls here; doing so
+  // double-counted against the webhook 'sent' status.
   const totals = useMemo(() => {
-    const totalSent = dailyStats.reduce((n, d) => n + d.sent, 0) + successCalls;
+    const totalSent = dailyStats.reduce((n, d) => n + d.sent, 0);
     const totalDelivered = dailyStats.reduce((n, d) => n + d.delivered, 0);
     const totalRead = dailyStats.reduce((n, d) => n + d.read, 0);
     const totalReceived = dailyStats.reduce((n, d) => n + d.received, 0);
@@ -156,7 +143,7 @@ function AnalyticsContent() {
       deliveryRate: totalSent > 0 ? Math.round((totalDelivered / totalSent) * 100) : 0,
       readRate: totalDelivered > 0 ? Math.round((totalRead / totalDelivered) * 100) : 0,
     };
-  }, [dailyStats, successCalls]);
+  }, [dailyStats]);
 
   if (loading) return <LoadingPage />;
 
@@ -164,7 +151,7 @@ function AnalyticsContent() {
     <div className="max-w-5xl mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight text-near-black">Analytics</h1>
-        <p className="mt-1 text-sm text-warm-500">Last 30 days · data from webhook events and local request history</p>
+        <p className="mt-1 text-sm text-warm-500">Last 30 days · delivery stats from webhook events</p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
