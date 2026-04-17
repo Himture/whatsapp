@@ -76,7 +76,8 @@ export const whatsappConfig = pgTable("whatsapp_config", {
   phoneNumberId: text("phone_number_id").notNull(),
   wabaId: text("waba_id").notNull(),
   businessPortfolioId: text("business_portfolio_id"),
-  apiVersion: text("api_version").notNull().default("v21.0"),
+  // Keep in sync with DEFAULT_API_VERSION in src/lib/constants.ts.
+  apiVersion: text("api_version").notNull().default("v24.0"),
   isDefault: boolean("is_default").notNull().default(false),
   // Auto-generated on creation; user sets this as the verify token in Meta webhook settings.
   webhookVerifyToken: text("webhook_verify_token").notNull().default(""),

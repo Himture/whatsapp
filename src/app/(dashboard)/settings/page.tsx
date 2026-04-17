@@ -10,7 +10,7 @@ import { Card, CardContent, CardTitle, CardDescription } from "@/components/ui/c
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { LoadingPage } from "@/components/ui/loading";
-import { API_VERSIONS, type ApiVersion } from "@/lib/constants";
+import { API_VERSIONS, DEFAULT_API_VERSION, type ApiVersion } from "@/lib/constants";
 import { maskToken, buildGraphApiUrl } from "@/lib/utils";
 import { useWhatsAppConfig } from "@/hooks/use-whatsapp-config";
 import { useSessionMode } from "@/lib/session-mode";
@@ -33,7 +33,7 @@ export default function SettingsPage() {
   const [phoneNumberId, setPhoneNumberId] = useState("");
   const [wabaId, setWabaId] = useState("");
   const [businessPortfolioId, setBusinessPortfolioId] = useState("");
-  const [apiVersion, setApiVersion] = useState<ApiVersion>("v21.0");
+  const [apiVersion, setApiVersion] = useState<ApiVersion>(DEFAULT_API_VERSION);
   const [appSecret, setAppSecret] = useState("");
 
   const storeMode: "remote" | "local" | null =
@@ -45,7 +45,7 @@ export default function SettingsPage() {
     setPhoneNumberId("");
     setWabaId("");
     setBusinessPortfolioId("");
-    setApiVersion("v21.0");
+    setApiVersion(DEFAULT_API_VERSION);
     setAppSecret("");
     setShowSecret(false);
     setShowForm(false);

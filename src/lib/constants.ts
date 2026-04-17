@@ -8,13 +8,17 @@ export const GITHUB_URL =
 export const BROADCAST_SAFETY_CHECK_THRESHOLD = 100;
 
 export const WHATSAPP_GRAPH_API_BASE = "https://graph.facebook.com" as const;
-export const DEFAULT_API_VERSION = "v21.0" as const;
+// Current Graph API is v25.0 (Feb 2026). v18.0/v19.0 are already sunset and
+// v20.0 expires Sep 2026, so we only offer currently-supported versions and
+// default to a recent, stable one.
+export const DEFAULT_API_VERSION = "v24.0" as const;
 
 export const API_VERSIONS = [
+  "v25.0",
+  "v24.0",
+  "v23.0",
+  "v22.0",
   "v21.0",
-  "v20.0",
-  "v19.0",
-  "v18.0",
 ] as const;
 
 export type ApiVersion = (typeof API_VERSIONS)[number];
@@ -130,8 +134,9 @@ export const ENCRYPTION_IV_LENGTH = 16 as const;
 export const ENCRYPTION_TAG_LENGTH = 16 as const;
 
 // ─── Broadcast rate limit options ─────────────────────────────────────────────
-// Based on Meta's guidance: Cloud API supports up to 250 messages/second per phone number.
-// We use conservative defaults to protect phone number quality rating.
+// Meta's Cloud API delivers ~80 messages/second per number by default (upgradable
+// to 1,000 mps on request). These client-side defaults stay well under that to
+// protect the phone number's quality rating.
 export const BROADCAST_RATE_OPTIONS = [
   { label: "Fast (20 msg/s)", value: 50 },
   { label: "Standard (10 msg/s)", value: 100 },
@@ -139,12 +144,15 @@ export const BROADCAST_RATE_OPTIONS = [
   { label: "Slow (2 msg/s)", value: 500 },
 ] as const;
 
-// Daily business-initiated conversation limits per Meta tier.
-// Users should monitor their tier in the WhatsApp Manager.
+// Daily messaging limits (unique customers reachable per rolling 24h) per Meta tier.
+// Limits apply per Business Portfolio (shared across all numbers in it) and are
+// re-evaluated roughly every 6 hours based on send volume + quality rating.
+// Monitor the live tier in the WhatsApp Manager.
 export const META_TIER_LIMITS = [
-  { tier: 1, label: "Tier 1", dailyLimit: 1_000, description: "Default for new numbers" },
-  { tier: 2, label: "Tier 2", dailyLimit: 10_000, description: "After 1k conversations in 30 days" },
-  { tier: 3, label: "Tier 3", dailyLimit: 100_000, description: "After 10k conversations in 30 days" },
+  { tier: 0, label: "Unverified", dailyLimit: 250, description: "New business — before Business Verification" },
+  { tier: 1, label: "Tier 1", dailyLimit: 1_000, description: "After Business Verification" },
+  { tier: 2, label: "Tier 2", dailyLimit: 10_000, description: "Scales with volume + quality rating" },
+  { tier: 3, label: "Tier 3", dailyLimit: 100_000, description: "Scales with volume + quality rating" },
   { tier: 4, label: "Tier 4", dailyLimit: Infinity, description: "Unlimited — unlocked by Meta" },
 ] as const;
 
@@ -179,13 +187,20 @@ export const TEMPLATE_LANGUAGES = [
 
 // ─── Webhook event types ──────────────────────────────────────────────────────
 
+// Subscribable webhook fields (the `change.field` value Meta sends). Note that
+// message delivery "statuses" and "errors" are NOT separate subscription fields —
+// they arrive nested inside the "messages" field's value payload.
 export const WEBHOOK_EVENT_TYPES = [
   "messages",
-  "statuses",
-  "errors",
-  "account_update",
-  "template_category_update",
   "message_template_status_update",
+  "message_template_quality_update",
+  "template_category_update",
+  "phone_number_quality_update",
+  "phone_number_name_update",
+  "account_update",
+  "account_review_update",
+  "business_capability_update",
+  "security",
 ] as const;
 
 export type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number];

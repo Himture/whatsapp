@@ -1,6 +1,7 @@
 "use client";
 
 import type { DataStore, ConfigRecord, SyncResult } from "./types";
+import type { ApiVersion } from "@/lib/constants";
 
 export async function syncAll(
   local: DataStore,
@@ -42,7 +43,7 @@ export async function syncAll(
           phoneNumberId: localConfig.phoneNumberId,
           wabaId: localConfig.wabaId,
           businessPortfolioId: localConfig.businessPortfolioId ?? undefined,
-          apiVersion: localConfig.apiVersion as "v21.0" | "v20.0" | "v19.0" | "v18.0",
+          apiVersion: localConfig.apiVersion as ApiVersion,
         });
         if (pushResult.success) {
           result.pushed++;
@@ -64,7 +65,7 @@ export async function syncAll(
           phoneNumberId: remoteConfig.phoneNumberId,
           wabaId: remoteConfig.wabaId,
           businessPortfolioId: remoteConfig.businessPortfolioId ?? undefined,
-          apiVersion: remoteConfig.apiVersion as "v21.0" | "v20.0" | "v19.0" | "v18.0",
+          apiVersion: remoteConfig.apiVersion as ApiVersion,
         });
         if (pullResult.success) {
           result.pulled++;
@@ -97,7 +98,7 @@ export async function syncAll(
           phoneNumberId: localConfig.phoneNumberId,
           wabaId: localConfig.wabaId,
           businessPortfolioId: localConfig.businessPortfolioId ?? undefined,
-          apiVersion: localConfig.apiVersion as "v21.0" | "v20.0" | "v19.0" | "v18.0",
+          apiVersion: localConfig.apiVersion as ApiVersion,
         });
         result.pushed++;
       } catch {
@@ -111,7 +112,7 @@ export async function syncAll(
           phoneNumberId: remoteConfig.phoneNumberId,
           wabaId: remoteConfig.wabaId,
           businessPortfolioId: remoteConfig.businessPortfolioId ?? undefined,
-          apiVersion: remoteConfig.apiVersion as "v21.0" | "v20.0" | "v19.0" | "v18.0",
+          apiVersion: remoteConfig.apiVersion as ApiVersion,
         });
         result.pulled++;
       } catch {
