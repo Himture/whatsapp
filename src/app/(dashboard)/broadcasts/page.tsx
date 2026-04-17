@@ -54,6 +54,29 @@ export default function BroadcastsPage() {
     startTransition(() => { void load(); });
   }, [load]);
 
+  // Once on mount, recover any broadcast left "running" by a crashed/closed tab.
+  const recoveredRef = useRef(false);
+  useEffect(() => {
+    if (mode === "loading" || recoveredRef.current) return;
+    recoveredRef.current = true;
+    void (async () => {
+      const all = await getBroadcastStore(storeMode).getBroadcasts();
+      const stranded = all.filter((b) => b.status === "running");
+      if (stranded.length === 0) return;
+      await Promise.all(stranded.map((b) => recoverIfStranded(b.id)));
+      void load();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, storeMode, load]);
+
+  // The send loop is client-side; warn before the tab is closed mid-broadcast.
+  useEffect(() => {
+    if (!runningId) return;
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [runningId]);
+
   async function handleExpand(broadcastId: string) {
     if (expanded === broadcastId) { setExpanded(null); return; }
     setExpanded(broadcastId);
@@ -93,7 +116,30 @@ export default function BroadcastsPage() {
     await executeRun(broadcast, pending);
   }
 
+  // Only one tab may run a given broadcast at a time. Web Locks gives us a
+  // cross-tab mutex; ifAvailable:true means we never block — if another tab
+  // already holds the lock we bail out instead of double-sending.
   async function executeRun(broadcast: BroadcastRecord, pending: BroadcastRecipientRecord[]) {
+    if (!activeConfig) return;
+
+    if (typeof navigator !== "undefined" && navigator.locks) {
+      await navigator.locks.request(
+        `broadcast:${broadcast.id}`,
+        { ifAvailable: true },
+        async (lock) => {
+          if (!lock) {
+            notify.error("That broadcast is already running in another tab.");
+            return;
+          }
+          await runSendLoop(broadcast, pending);
+        },
+      );
+    } else {
+      await runSendLoop(broadcast, pending);
+    }
+  }
+
+  async function runSendLoop(broadcast: BroadcastRecord, pending: BroadcastRecipientRecord[]) {
     if (!activeConfig) return;
     const store = getBroadcastStore(storeMode);
 
@@ -102,8 +148,12 @@ export default function BroadcastsPage() {
     await store.updateBroadcastStatus(broadcast.id, "running");
     void load();
 
+    // Recipients being retried that previously failed must leave the failed
+    // tally up front, or a retry double-counts them. They're re-added below
+    // only if they fail again — and a now-successful retry correctly nets down.
+    const retriedFailed = pending.filter((r) => r.status === "failed").length;
     let sent = broadcast.sentCount;
-    let failed = broadcast.failedCount;
+    let failed = Math.max(0, broadcast.failedCount - retriedFailed);
 
     for (const recipient of pending) {
       if (runningRef.current?.cancel) break;
@@ -132,12 +182,12 @@ export default function BroadcastsPage() {
         sent++;
         const wamid = (result.data as { messages?: Array<{ id: string }> })?.messages?.[0]?.id;
         await store.updateRecipientStatus(recipient.id, "sent", wamid);
-        await store.updateBroadcastStatus(broadcast.id, "running", { sentCount: sent });
+        await store.updateBroadcastStatus(broadcast.id, "running", { sentCount: sent, failedCount: failed });
       } else {
         failed++;
         const errMsg = (result.data as { error?: { message?: string } })?.error?.message ?? "Send failed";
         await store.updateRecipientStatus(recipient.id, "failed", undefined, errMsg);
-        await store.updateBroadcastStatus(broadcast.id, "running", { failedCount: failed });
+        await store.updateBroadcastStatus(broadcast.id, "running", { sentCount: sent, failedCount: failed });
       }
 
       void load();
@@ -158,6 +208,21 @@ export default function BroadcastsPage() {
 
   function handlePause() {
     if (runningRef.current) runningRef.current.cancel = true;
+  }
+
+  // Probe-and-recover a broadcast stuck on "running" (e.g. its tab was closed
+  // mid-send). If we can immediately take its lock, no other tab is running it,
+  // so it's genuinely stranded and we flip it back to "paused" for resume.
+  async function recoverIfStranded(broadcastId: string) {
+    if (typeof navigator === "undefined" || !navigator.locks) return;
+    await navigator.locks.request(
+      `broadcast:${broadcastId}`,
+      { ifAvailable: true },
+      async (lock) => {
+        if (!lock) return; // another tab is actively running it
+        await getBroadcastStore(storeMode).updateBroadcastStatus(broadcastId, "paused");
+      },
+    );
   }
 
   if (loading) return <LoadingPage />;
