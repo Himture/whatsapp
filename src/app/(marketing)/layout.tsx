@@ -33,9 +33,8 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
             <p className="font-semibold text-near-black mb-3">Product</p>
             <ul className="space-y-1.5 text-warm-500">
               <li><Link href="/pricing" className="hover:text-near-black">Pricing</Link></li>
-              <li><Link href="/vs/wati" className="hover:text-near-black">Vs Wati</Link></li>
-              <li><Link href="/vs/aisensy" className="hover:text-near-black">Vs AiSensy</Link></li>
-              <li><Link href="/vs/interakt" className="hover:text-near-black">Vs Interakt</Link></li>
+              <li><Link href={ROUTES.LOGIN + "?demo=1"} className="hover:text-near-black">Live demo</Link></li>
+              <li><Link href={GITHUB_URL} className="hover:text-near-black">Self-host</Link></li>
             </ul>
           </div>
           <div>

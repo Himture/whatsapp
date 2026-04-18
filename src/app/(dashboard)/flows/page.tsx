@@ -129,7 +129,7 @@ function FlowsContent() {
     <div className="max-w-3xl mx-auto">
       <div className="mb-6 flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-near-black">Auto-Reply Flows</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-near-black">Auto-Replies</h1>
           <p className="mt-1 text-sm text-warm-500">{rules.filter((r) => r.enabled).length} active rules · evaluated in priority order</p>
         </div>
         <Button size="sm" onClick={() => setShowForm(!showForm)}>

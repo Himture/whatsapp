@@ -10,12 +10,12 @@ interface Feature {
 }
 
 const FEATURES: Feature[] = [
-  { icon: Inbox, title: "Unified inbox", description: "Every conversation in one thread view. Reply inline. Works with any WhatsApp Cloud API account." },
-  { icon: Users, title: "Contacts and lists", description: "Import CSV, tag, segment. Opt-out tracking built in. No extra fee." },
-  { icon: Megaphone, title: "Rate-limited broadcasts", description: "Send to thousands with pause, resume, and retry. Quality rating-aware." },
+  { icon: Inbox, title: "Inbox (deploy mode)", description: "Every conversation in one thread once your webhook is deployed. Reply inline." },
+  { icon: Users, title: "Contacts and lists", description: "Import CSV, tag, segment. Opt-out tracking built in." },
+  { icon: Megaphone, title: "Rate-limited broadcasts", description: "Send to thousands with pause, resume, and retry. Quality-rating aware." },
   { icon: LayoutTemplate, title: "Template management", description: "Create, preview, submit, delete templates. Ten approved presets included." },
-  { icon: GitBranch, title: "Auto-reply flows", description: "Keyword, greeting, first-message triggers. Instant replies via webhook." },
-  { icon: BarChart3, title: "Real analytics", description: "Delivery and read rates with industry benchmarks. Not a data dump." },
+  { icon: GitBranch, title: "Auto-replies (deploy mode)", description: "Keyword, greeting and first-message triggers. Fire once a webhook is deployed." },
+  { icon: BarChart3, title: "Delivery analytics", description: "Delivery and read rates from webhook events, with industry benchmarks." },
   { icon: CalendarClock, title: "Scheduled messages", description: "Queue anything for future delivery. Cancel anytime before it fires." },
   { icon: QrCode, title: "QR codes and deep links", description: "Generate click-to-chat codes with prefilled messages. Download PNG." },
 ];

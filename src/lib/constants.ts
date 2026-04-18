@@ -66,7 +66,7 @@ export const NAV_SECTIONS = [
   { label: "Contacts", href: ROUTES.CONTACTS, icon: "Users", group: "business" },
   { label: "Broadcasts", href: ROUTES.BROADCASTS, icon: "Megaphone", group: "business" },
   { label: "Templates", href: ROUTES.TEMPLATES, icon: "LayoutTemplate", group: "business" },
-  { label: "Flows", href: ROUTES.FLOWS, icon: "GitBranch", group: "business" },
+  { label: "Auto-Replies", href: ROUTES.FLOWS, icon: "GitBranch", group: "business" },
   { label: "Schedule", href: ROUTES.SCHEDULE, icon: "CalendarClock", group: "business" },
   { label: "QR Codes", href: ROUTES.QR, icon: "QrCode", group: "business" },
   // API Explorer
