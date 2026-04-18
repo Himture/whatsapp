@@ -33,13 +33,15 @@ let localBroadcastStore: LocalBroadcastStore | null = null;
 let localScheduleStore: LocalScheduleStore | null = null;
 let localFlowStore: LocalFlowStore | null = null;
 
-// Remote stores are loaded lazily via dynamic import so their server action
-// imports don't pull "use server" modules into the client bundle at parse time.
-// For now all modes use local stores; remote store wrappers that call server
-// actions are the same pattern as RemoteStore in src/lib/datastore — they can
-// be added here when multi-device cloud sync for the new domains is needed.
-// The server actions themselves (contacts/actions.ts etc.) are called by the
-// webhook receiver and any future server-side processors directly.
+// KNOWN GAP: these factories return the LOCAL IndexedDB store in *every* mode
+// today — remote (cloud) implementations are not wired yet. Consequence: in
+// authenticated/cloud mode the webhook receiver writes inbound data to Postgres,
+// but the dashboard reads IndexedDB, so the inbox/analytics will NOT display that
+// server-side data until Remote* wrappers (same pattern as RemoteStore in
+// src/lib/datastore) are added here. So inbound needs both a deployed webhook
+// AND these remote wrappers before the dashboard can show live traffic. The
+// server actions (contacts/actions.ts etc.) are already called directly by the
+// webhook receiver.
 
 export function getContactStore(_mode: "local" | "remote"): LocalContactStore {
   if (!localContactStore) localContactStore = new LocalContactStore();

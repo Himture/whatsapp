@@ -9,6 +9,7 @@ import { useSessionMode } from "@/lib/session-mode";
 import { useWhatsAppConfig } from "@/hooks/use-whatsapp-config";
 import { getInboxStore, getBroadcastStore } from "@/lib/stores";
 import { ConfigGuard } from "@/components/whatsapp/config-guard";
+import { DeploymentRequiredNotice } from "@/components/whatsapp/deployment-required-notice";
 import { INDUSTRY_BENCHMARKS } from "@/lib/constants";
 
 // Recharts is ~300KB. Load it only after the page shell has hydrated so it
@@ -153,6 +154,8 @@ function AnalyticsContent() {
         <h1 className="text-2xl font-bold tracking-tight text-near-black">Analytics</h1>
         <p className="mt-1 text-sm text-warm-500">Last 30 days · delivery stats from webhook events</p>
       </div>
+
+      {mode === "local" && <DeploymentRequiredNotice feature="Analytics" />}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
         <StatCard label="Messages Sent" value={totals.sent} icon={MessageSquare} color="bg-notion-blue" />

@@ -237,13 +237,16 @@ async function processPayload(
       }
 
       for (const status of value.statuses ?? []) {
+        // Failed statuses carry an errors[] array (code/title/details) Meta wants
+        // surfaced — persist it instead of discarding it as null.
+        const statusErrors = (status as { errors?: unknown[] }).errors;
         await db.insert(messageStatus).values({
           configId,
           waMessageId: status.id,
           status: status.status,
           recipientPhone: status.recipient_id,
           timestamp: new Date(parseInt(status.timestamp, 10) * 1000),
-          error: null,
+          error: statusErrors && statusErrors.length > 0 ? statusErrors : null,
         });
       }
     }

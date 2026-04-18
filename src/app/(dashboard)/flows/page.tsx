@@ -15,6 +15,7 @@ import { useWhatsAppConfig } from "@/hooks/use-whatsapp-config";
 import { getFlowStore } from "@/lib/stores";
 import type { AutoReplyRuleRecord, TriggerType, MatchMode, ResponseType } from "@/lib/stores";
 import { ConfigGuard } from "@/components/whatsapp/config-guard";
+import { DeploymentRequiredNotice } from "@/components/whatsapp/deployment-required-notice";
 
 const TRIGGER_OPTIONS = [
   { label: "Any message", value: "any" },
@@ -135,6 +136,8 @@ function FlowsContent() {
           <Plus className="size-4" aria-hidden="true" /> New Rule
         </Button>
       </div>
+
+      {mode === "local" && <DeploymentRequiredNotice feature="Auto-replies" />}
 
       <div className="mb-4 flex items-start gap-2 rounded-[var(--radius-micro)] bg-blue-50 border border-blue-200 p-3 text-sm text-blue-800">
         <Info className="size-4 shrink-0 mt-0.5" aria-hidden="true" />

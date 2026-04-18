@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LoadingPage } from "@/components/ui/loading";
 import { ConfigGuard } from "@/components/whatsapp/config-guard";
+import { DeploymentRequiredNotice } from "@/components/whatsapp/deployment-required-notice";
 import Link from "next/link";
 import { ROUTES } from "@/lib/constants";
 
@@ -83,6 +84,8 @@ function InboxContent() {
           </p>
         </div>
       </div>
+
+      {mode === "local" && <DeploymentRequiredNotice feature="The inbox" />}
 
       {conversations.length === 0 ? (
         <div className="mb-4 flex gap-2 rounded-[var(--radius-micro)] bg-blue-50 border border-blue-200 p-3 text-sm text-blue-800">
