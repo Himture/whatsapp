@@ -31,7 +31,7 @@ export async function seedDemoData(): Promise<void> {
       phoneNumberId: "100000000000000",
       wabaId: "100000000000001",
       businessPortfolioId: null,
-      apiVersion: "v21.0",
+      apiVersion: "v24.0",
       isDefault: true,
       webhookVerifyToken: "demo-verify-token",
       encryptedAppSecret: null,

@@ -55,18 +55,29 @@ export default function BroadcastsPage() {
   }, [load]);
 
   // Once on mount, recover any broadcast left "running" by a crashed/closed tab.
+  // Probe each one's Web Lock: if it's free, no tab is running it, so it's
+  // genuinely stranded — re-read under the lock and only then flip it to "paused"
+  // (guards against relabeling one that just completed in another tab).
   const recoveredRef = useRef(false);
   useEffect(() => {
     if (mode === "loading" || recoveredRef.current) return;
     recoveredRef.current = true;
     void (async () => {
-      const all = await getBroadcastStore(storeMode).getBroadcasts();
-      const stranded = all.filter((b) => b.status === "running");
+      if (typeof navigator === "undefined" || !navigator.locks) return;
+      const store = getBroadcastStore(storeMode);
+      const stranded = (await store.getBroadcasts()).filter((b) => b.status === "running");
       if (stranded.length === 0) return;
-      await Promise.all(stranded.map((b) => recoverIfStranded(b.id)));
+      await Promise.all(
+        stranded.map((b) =>
+          navigator.locks.request(`broadcast:${b.id}`, { ifAvailable: true }, async (lock) => {
+            if (!lock) return; // running in another tab — leave it
+            const fresh = (await store.getBroadcasts()).find((x) => x.id === b.id);
+            if (fresh?.status === "running") await store.updateBroadcastStatus(b.id, "paused");
+          }),
+        ),
+      );
       void load();
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, storeMode, load]);
 
   // The send loop is client-side; warn before the tab is closed mid-broadcast.
@@ -91,6 +102,19 @@ export default function BroadcastsPage() {
       notify.error("Pause the broadcast before deleting");
       setDeleteId(null);
       return;
+    }
+    // Also refuse if it's running in another tab (its Web Lock is held).
+    if (typeof navigator !== "undefined" && navigator.locks) {
+      const free = await navigator.locks.request(
+        `broadcast:${deleteId}`,
+        { ifAvailable: true },
+        (lock) => lock !== null,
+      );
+      if (!free) {
+        notify.error("That broadcast is running in another tab. Pause it there first.");
+        setDeleteId(null);
+        return;
+      }
     }
     const store = getBroadcastStore(storeMode);
     const result = await store.deleteBroadcast(deleteId);
@@ -208,21 +232,6 @@ export default function BroadcastsPage() {
 
   function handlePause() {
     if (runningRef.current) runningRef.current.cancel = true;
-  }
-
-  // Probe-and-recover a broadcast stuck on "running" (e.g. its tab was closed
-  // mid-send). If we can immediately take its lock, no other tab is running it,
-  // so it's genuinely stranded and we flip it back to "paused" for resume.
-  async function recoverIfStranded(broadcastId: string) {
-    if (typeof navigator === "undefined" || !navigator.locks) return;
-    await navigator.locks.request(
-      `broadcast:${broadcastId}`,
-      { ifAvailable: true },
-      async (lock) => {
-        if (!lock) return; // another tab is actively running it
-        await getBroadcastStore(storeMode).updateBroadcastStatus(broadcastId, "paused");
-      },
-    );
   }
 
   if (loading) return <LoadingPage />;

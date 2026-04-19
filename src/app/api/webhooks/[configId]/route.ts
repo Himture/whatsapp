@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "crypto";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { after } from "next/server";
 import type { z } from "zod";
 import { getDb } from "@/db";
@@ -226,7 +226,7 @@ async function processPayload(
           const previousMessages = await db
             .select({ id: receivedMessage.id })
             .from(receivedMessage)
-            .where(eq(receivedMessage.fromPhone, msg.from));
+            .where(and(eq(receivedMessage.configId, configId), eq(receivedMessage.fromPhone, msg.from)));
           const isFirstMessage = previousMessages.length === 1;
 
           const matchedRule = await findMatchingRule(configId, textBody, isFirstMessage);

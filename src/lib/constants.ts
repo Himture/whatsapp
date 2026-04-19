@@ -2,7 +2,7 @@ export const APP_NAME = "WhatsApp API Manager" as const;
 export const APP_DESCRIPTION = "Manage your WhatsApp Cloud API with a clean, intuitive interface" as const;
 
 export const GITHUB_URL =
-  process.env.NEXT_PUBLIC_GITHUB_URL ?? "https://github.com/anthropics/whatsapp-api-manager";
+  process.env.NEXT_PUBLIC_GITHUB_URL ?? "https://github.com/Himture/whatsapp";
 
 // Block client-side broadcasts above this many recipients until the user confirms.
 export const BROADCAST_SAFETY_CHECK_THRESHOLD = 100;
