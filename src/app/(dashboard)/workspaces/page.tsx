@@ -31,10 +31,11 @@ async function computeStats(configId: string, storeMode: "local" | "remote"): Pr
   const inboxStore = getInboxStore(storeMode);
   const broadcastStore = getBroadcastStore(storeMode);
 
-  const [conversations, broadcasts, events] = await Promise.all([
+  const [conversations, broadcasts, statuses, received] = await Promise.all([
     inboxStore.getConversations(configId),
     broadcastStore.getBroadcasts(),
-    inboxStore.getWebhookEvents(configId, 500),
+    inboxStore.getAllMessageStatuses(configId),
+    inboxStore.getAllReceivedMessages(configId),
   ]);
 
   const unreadCount = conversations.reduce((n, c) => n + c.unreadCount, 0);
@@ -42,17 +43,13 @@ async function computeStats(configId: string, storeMode: "local" | "remote"): Pr
 
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   let messagesLast7d = 0;
-  let lastActivity: string | null = null;
-  for (const event of events) {
-    const ts = new Date(event.createdAt).getTime();
-    if (!lastActivity || new Date(event.createdAt) > new Date(lastActivity)) {
-      lastActivity = event.createdAt;
-    }
-    if (ts >= sevenDaysAgo && event.eventType === "messages") {
-      const payload = event.payload as { messages?: unknown[]; statuses?: unknown[] };
-      messagesLast7d += (payload.messages ?? []).length + (payload.statuses ?? []).length;
-    }
+  let lastActivityMs: number | null = null;
+  for (const ts of [...statuses.map((s) => s.timestamp), ...received.map((m) => m.timestamp)]) {
+    const t = new Date(ts).getTime();
+    if (lastActivityMs === null || t > lastActivityMs) lastActivityMs = t;
+    if (t >= sevenDaysAgo) messagesLast7d++;
   }
+  const lastActivity = lastActivityMs === null ? null : new Date(lastActivityMs).toISOString();
   return { unreadCount, runningBroadcasts, messagesLast7d, lastActivity };
 }
 

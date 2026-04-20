@@ -73,6 +73,7 @@ export function WhatsAppConfigProvider({ children }: { children: ReactNode }): J
         phoneNumberId: activeEntry.phoneNumberId,
         wabaId: activeEntry.wabaId,
         businessPortfolioId: activeEntry.businessPortfolioId ?? undefined,
+        appId: activeEntry.appId ?? undefined,
         version: activeEntry.apiVersion as ApiVersion,
       }
     : null;

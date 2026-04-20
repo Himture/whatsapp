@@ -11,6 +11,7 @@ export interface ConfigRecord {
   isDefault: boolean;
   webhookVerifyToken: string;
   appSecret: string | null;
+  appId: string | null;
   displayName: string | null;
   brandColor: string | null;
   createdAt: string;
@@ -27,6 +28,7 @@ export interface ConfigInput {
   displayName?: string;
   brandColor?: string;
   appSecret?: string;
+  appId?: string;
 }
 
 export interface ActionResult {

@@ -1,6 +1,6 @@
 "use server";
 
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { requireUserId } from "@/lib/auth";
 import {
   assertOwnsBroadcast,
@@ -161,7 +161,9 @@ export async function updateBroadcastStatus(
       .set({
         status: newStatus,
         ...counts,
-        startedAt: newStatus === "running" ? now : undefined,
+        // Only stamp startedAt on the first transition to running, so pause→resume
+        // (another "running" update) doesn't overwrite the original start time.
+        startedAt: newStatus === "running" ? sql`coalesce(${broadcast.startedAt}, ${now})` : undefined,
         completedAt: newStatus === "completed" || newStatus === "failed" ? now : undefined,
         updatedAt: now,
       })

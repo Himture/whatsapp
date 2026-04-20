@@ -14,6 +14,12 @@ function getDerivedKey(): Buffer {
   if (!key) {
     throw new Error("ENCRYPTION_KEY environment variable is not set");
   }
+  // A static scrypt salt is safe only with a high-entropy key, so require a strong
+  // one (the recommended `openssl rand -hex 32` is 64 chars) — this stops a
+  // low-entropy key from being precomputed against the shared salt.
+  if (key.length < 32) {
+    throw new Error("ENCRYPTION_KEY must be at least 32 characters — generate one with `openssl rand -hex 32`.");
+  }
   return scryptSync(key, "whatsapp-api-salt", 32);
 }
 

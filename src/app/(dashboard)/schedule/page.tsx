@@ -14,7 +14,29 @@ import { useWhatsAppConfig } from "@/hooks/use-whatsapp-config";
 import { getScheduleStore } from "@/lib/stores";
 import { messagesApi } from "@/lib/whatsapp";
 import type { ScheduledMessageRecord } from "@/lib/stores";
+import type { ConfigRecord } from "@/lib/datastore";
+import type { WhatsAppClientConfig } from "@/lib/types";
+import type { ApiVersion } from "@/lib/constants";
 import { ConfigGuard } from "@/components/whatsapp/config-guard";
+
+function toClientConfig(c: ConfigRecord): WhatsAppClientConfig {
+  return {
+    accessToken: c.accessToken,
+    phoneNumberId: c.phoneNumberId,
+    wabaId: c.wabaId,
+    businessPortfolioId: c.businessPortfolioId ?? undefined,
+    version: c.apiVersion as ApiVersion,
+  };
+}
+
+// datetime-local renders in the user's local time, so build `min` in local time
+// too (not UTC) — otherwise in offset timezones a valid future time gets rejected
+// or a past one slips through.
+function localNowForInput(): string {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 16);
+}
 
 const STATUS_ICON: Record<string, React.ReactNode> = {
   pending: <Clock className="size-3.5 text-warm-500" aria-hidden="true" />,
@@ -40,7 +62,7 @@ export default function SchedulePage() {
 
 function ScheduleContent() {
   const { mode } = useSessionMode();
-  const { activeConfig, activeConfigId } = useWhatsAppConfig();
+  const { activeConfigId, configs } = useWhatsAppConfig();
   const storeMode = mode === "authenticated" ? "remote" as const : "local" as const;
 
   const [messages, setMessages] = useState<ScheduledMessageRecord[]>([]);
@@ -48,11 +70,14 @@ function ScheduleContent() {
   const [showForm, setShowForm] = useState(false);
   const [cancelId, setCancelId] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const activeConfigRef = useRef(activeConfig);
+  // Latest configs read through a ref so the poll interval doesn't restart every
+  // render; processingRef stops overlapping 30s ticks within this tab.
+  const configsRef = useRef(configs);
+  const processingRef = useRef(false);
 
   useEffect(() => {
-    activeConfigRef.current = activeConfig;
-  }, [activeConfig]);
+    configsRef.current = configs;
+  }, [configs]);
 
   const [fname, setFname] = useState("");
   const [fto, setFto] = useState("");
@@ -72,18 +97,18 @@ function ScheduleContent() {
     startTransition(() => { void load(); });
   }, [load]);
 
-  // Local-mode polling: every 30s, dispatch any due messages.
-  // The interval is set up once per (mode + activeConfigId) pair; the latest
-  // active config is read through a ref so we don't restart the timer on every render.
+  // Local-mode polling: every 30s, dispatch any due messages. Each message is sent
+  // through ITS OWN config's credentials (not whatever config happens to be active),
+  // and guarded so overlapping ticks and other open tabs can't double-send.
   useEffect(() => {
     if (mode !== "local" || !activeConfigId) return;
 
-    async function processDue() {
-      const cfg = activeConfigRef.current;
-      if (!cfg) return;
+    async function sendScheduled(msg: ScheduledMessageRecord, cfg: WhatsAppClientConfig) {
       const store = getScheduleStore("local");
-      const due = await store.getPendingDue();
-      for (const msg of due) {
+      const run = async () => {
+        // Re-read under the lock — another tab may have just sent this one.
+        const current = (await store.getScheduledMessages()).find((m) => m.id === msg.id);
+        if (!current || current.status !== "pending") return;
         const payload = msg.payload as { to?: string; text?: { body?: string } };
         const result = await messagesApi.sendText(cfg, payload.to ?? "", payload.text?.body ?? "");
         if (result.ok) {
@@ -100,8 +125,34 @@ function ScheduleContent() {
             processedAt: new Date().toISOString(),
           });
         }
+      };
+      // navigator.locks is a cross-tab mutex per message; ifAvailable means we skip
+      // (don't block) when another tab already holds it.
+      if (typeof navigator !== "undefined" && navigator.locks) {
+        await navigator.locks.request(`schedule:${msg.id}`, { ifAvailable: true }, async (lock) => {
+          if (lock) await run();
+        });
+      } else {
+        await run();
       }
-      if (due.length > 0) void load();
+    }
+
+    async function processDue() {
+      if (processingRef.current) return;
+      processingRef.current = true;
+      try {
+        const store = getScheduleStore("local");
+        const due = await store.getPendingDue();
+        if (due.length === 0) return;
+        const byId = new Map(configsRef.current.map((c) => [c.id, c]));
+        for (const msg of due) {
+          const cfg = byId.get(msg.configId);
+          if (cfg) await sendScheduled(msg, toClientConfig(cfg));
+        }
+        void load();
+      } finally {
+        processingRef.current = false;
+      }
     }
 
     timerRef.current = setInterval(() => { void processDue(); }, 30_000);
@@ -194,7 +245,7 @@ function ScheduleContent() {
                 value={fschedule}
                 onChange={(e) => setFschedule(e.target.value)}
                 required
-                min={new Date().toISOString().slice(0, 16)}
+                min={localNowForInput()}
               />
               <div className="flex gap-2">
                 <Button type="submit" loading={saving}>Schedule</Button>

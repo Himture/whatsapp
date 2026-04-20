@@ -25,6 +25,7 @@ export const ConfigInputSchema = z.object({
   displayName: z.string().trim().max(120).optional(),
   brandColor: BrandColorSchema.optional(),
   appSecret: z.string().trim().min(20).max(256).optional(),
+  appId: z.string().trim().max(64).optional(),
 });
 
 export const ConfigUpdateSchema = ConfigInputSchema.partial();

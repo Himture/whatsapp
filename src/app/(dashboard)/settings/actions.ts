@@ -56,6 +56,7 @@ export async function createConfig(input: ConfigInput): Promise<ActionResult> {
       displayName: data.displayName ?? null,
       brandColor: data.brandColor ?? null,
       appSecret: data.appSecret ? encrypt(data.appSecret) : null,
+      appId: data.appId ?? null,
       isDefault: isFirst,
       // A unique token the user registers in Meta's webhook settings.
       // Meta sends it back on each request so we can verify authenticity.
@@ -89,6 +90,7 @@ export async function updateConfig(
     if (data.displayName !== undefined) values.displayName = data.displayName ?? null;
     if (data.brandColor !== undefined) values.brandColor = data.brandColor ?? null;
     if (data.appSecret !== undefined) values.appSecret = data.appSecret ? encrypt(data.appSecret) : null;
+    if (data.appId !== undefined) values.appId = data.appId ?? null;
 
     await getDb()
       .update(whatsappConfig)

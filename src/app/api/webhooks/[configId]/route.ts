@@ -247,7 +247,7 @@ async function processPayload(
           recipientPhone: status.recipient_id,
           timestamp: new Date(parseInt(status.timestamp, 10) * 1000),
           error: statusErrors && statusErrors.length > 0 ? statusErrors : null,
-        });
+        }).onConflictDoNothing();
       }
     }
   }

@@ -128,4 +128,14 @@ export class LocalInboxStore implements InboxStore {
     }
     return results;
   }
+
+  async getAllMessageStatuses(configId: string): Promise<MessageStatusRecord[]> {
+    const db = await getLocalDb();
+    return (await db.getAllFromIndex("messageStatuses", "configId", configId)) as MessageStatusRecord[];
+  }
+
+  async getAllReceivedMessages(configId: string): Promise<ReceivedMessageRecord[]> {
+    const db = await getLocalDb();
+    return (await db.getAllFromIndex("receivedMessages", "configId", configId)) as ReceivedMessageRecord[];
+  }
 }

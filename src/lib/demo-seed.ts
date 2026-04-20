@@ -35,6 +35,7 @@ export async function seedDemoData(): Promise<void> {
       isDefault: true,
       webhookVerifyToken: "demo-verify-token",
       encryptedAppSecret: null,
+      appId: null,
       displayName: null,
       brandColor: null,
       createdAt: iso(60 * 24 * 30),

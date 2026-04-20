@@ -44,17 +44,27 @@ export function DashboardSummary() {
     const broadcastStore = getBroadcastStore(storeMode);
     const scheduleStore = getScheduleStore(storeMode);
 
-    const [conversations, broadcasts, scheduled, recentEvents] = await Promise.all([
+    const [conversations, broadcasts, scheduled, statuses, received] = await Promise.all([
       inboxStore.getConversations(activeConfigId),
       broadcastStore.getBroadcasts(),
       scheduleStore.getScheduledMessages(),
-      inboxStore.getWebhookEvents(activeConfigId, 1),
+      inboxStore.getAllMessageStatuses(activeConfigId),
+      inboxStore.getAllReceivedMessages(activeConfigId),
     ]);
 
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const todayEnd = new Date(todayStart);
     todayEnd.setDate(todayEnd.getDate() + 1);
+
+    // Most recent webhook-delivered datum (a status update or inbound message).
+    const activityTimes = [
+      ...statuses.map((s) => new Date(s.timestamp).getTime()),
+      ...received.map((m) => new Date(m.timestamp).getTime()),
+    ];
+    const lastWebhookAt = activityTimes.length > 0
+      ? new Date(Math.max(...activityTimes)).toISOString()
+      : null;
 
     setSummary({
       unread: conversations.reduce((n, c) => n + c.unreadCount, 0),
@@ -63,7 +73,7 @@ export function DashboardSummary() {
         return s.status === "pending" && at >= todayStart && at < todayEnd;
       }).length,
       activeBroadcasts: broadcasts.filter((b) => b.status === "running" || b.status === "paused").length,
-      lastWebhookAt: recentEvents[0]?.createdAt ?? null,
+      lastWebhookAt,
     });
     setLoading(false);
   }, [mode, storeMode, activeConfigId]);

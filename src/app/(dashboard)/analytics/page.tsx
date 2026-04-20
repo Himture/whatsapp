@@ -74,37 +74,33 @@ function AnalyticsContent() {
     const inboxStore = getInboxStore(storeMode);
     const broadcastStore = getBroadcastStore(storeMode);
 
-    const [broadcasts, events] = await Promise.all([
+    const [broadcasts, statuses, received] = await Promise.all([
       broadcastStore.getBroadcasts(),
-      inboxStore.getWebhookEvents(activeConfigId, 1000),
+      inboxStore.getAllMessageStatuses(activeConfigId),
+      inboxStore.getAllReceivedMessages(activeConfigId),
     ]);
 
     const statsByDay = new Map<string, DailyStat>();
     const getDay = (ts: string) => new Date(ts).toLocaleDateString("en-CA");
+    const dayStat = (day: string) => {
+      let s = statsByDay.get(day);
+      if (!s) { s = { date: day, sent: 0, delivered: 0, read: 0, received: 0 }; statsByDay.set(day, s); }
+      return s;
+    };
 
-    for (const event of events) {
-      if (event.eventType !== "messages") continue;
-      const payload = event.payload as {
-        statuses?: Array<{ status: string; timestamp: string }>;
-        messages?: unknown[];
-      };
-      const day = getDay(event.createdAt);
-      const stat = statsByDay.get(day) ?? { date: day, sent: 0, delivered: 0, read: 0, received: 0 };
-
-      for (const s of payload.statuses ?? []) {
-        if (s.status === "sent") stat.sent++;
-        else if (s.status === "delivered") stat.delivered++;
-        else if (s.status === "read") stat.read++;
-      }
-      stat.received += (payload.messages ?? []).length;
-
-      statsByDay.set(day, stat);
+    for (const st of statuses) {
+      const s = dayStat(getDay(st.timestamp));
+      if (st.status === "sent") s.sent++;
+      else if (st.status === "delivered") s.delivered++;
+      else if (st.status === "read") s.read++;
+    }
+    for (const msg of received) {
+      dayStat(getDay(msg.timestamp)).received++;
     }
 
-    const daily = Array.from(statsByDay.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .slice(-30)
-      .map(([, v]) => v);
+    const daily = Array.from(statsByDay.values())
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(-30);
 
     const bStats: BroadcastStat[] = [];
     for (const b of broadcasts) {
@@ -128,9 +124,9 @@ function AnalyticsContent() {
     startTransition(() => { void load(); });
   }, [load]);
 
-  // Delivery stats come solely from webhook status events — the single source of
-  // truth. We intentionally do NOT add outbound explorer calls here; doing so
-  // double-counted against the webhook 'sent' status.
+  // Delivery stats come solely from recorded message-status events (sent/delivered/
+  // read) — the single source of truth. We intentionally do NOT add outbound explorer
+  // calls here; doing so would double-count against the 'sent' status.
   const totals = useMemo(() => {
     const totalSent = dailyStats.reduce((n, d) => n + d.sent, 0);
     const totalDelivered = dailyStats.reduce((n, d) => n + d.delivered, 0);

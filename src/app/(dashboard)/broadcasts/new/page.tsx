@@ -26,7 +26,7 @@ const MESSAGE_TYPE_OPTIONS = [
 export default function NewBroadcastPage() {
   const router = useRouter();
   const { mode } = useSessionMode();
-  const { activeConfig } = useWhatsAppConfig();
+  const { activeConfig, activeConfigId } = useWhatsAppConfig();
   const storeMode = mode === "authenticated" ? "remote" as const : "local" as const;
 
   const [name, setName] = useState("");
@@ -78,7 +78,7 @@ export default function NewBroadcastPage() {
 
   async function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!activeConfig) { setError("No active config selected"); return; }
+    if (!activeConfig || !activeConfigId) { setError("No active config selected"); return; }
 
     // Fetch all list members in parallel (one Promise.all, not N sequential awaits).
     const contactStore = getContactStore(storeMode);
@@ -125,7 +125,7 @@ export default function NewBroadcastPage() {
     const store = getBroadcastStore(storeMode);
     const result = await store.createBroadcast(
       {
-        configId: activeConfig.phoneNumberId,
+        configId: activeConfigId,
         name,
         messageType,
         payload,

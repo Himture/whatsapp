@@ -7,6 +7,7 @@ import {
   integer,
   jsonb,
   index,
+  uniqueIndex,
   primaryKey,
 } from "drizzle-orm/pg-core";
 
@@ -81,6 +82,8 @@ export const whatsappConfig = pgTable("whatsapp_config", {
   webhookVerifyToken: text("webhook_verify_token").notNull().default(""),
   // Optional: used to verify X-Hub-Signature-256 on incoming webhook payloads.
   appSecret: text("app_secret"),
+  // Meta App ID — a public identifier; required for the Resumable Upload endpoint.
+  appId: text("app_id"),
   // Optional per-workspace branding (custom display name + accent colour).
   displayName: text("display_name"),
   brandColor: text("brand_color"),
@@ -219,6 +222,9 @@ export const messageStatus = pgTable(
   (t) => [
     index("msg_status_config_idx").on(t.configId),
     index("msg_status_wamid_idx").on(t.waMessageId),
+    // Meta redelivers webhooks (at-least-once); one row per status transition so
+    // a redelivered "delivered"/"read" doesn't double-count in analytics.
+    uniqueIndex("msg_status_wamid_status_uq").on(t.waMessageId, t.status),
   ],
 );
 

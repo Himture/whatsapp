@@ -57,6 +57,52 @@ async function graphFetch<T>(
   }
 }
 
+// Resumable Upload (step 2): POST the raw file bytes to the upload session. This
+// step uses an `OAuth` auth scheme (not Bearer) plus a file_offset header and
+// returns { h: "<handle>" } — different enough from graphFetch to need its own.
+async function graphUploadFetch(
+  config: WhatsAppClientConfig,
+  uploadSessionId: string,
+  file: File,
+): Promise<ApiCallResult> {
+  const url = buildGraphApiUrl(config.version, uploadSessionId);
+  const start = performance.now();
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `OAuth ${config.accessToken}`,
+        file_offset: "0",
+      },
+      body: file,
+    });
+
+    const data = await response.json();
+    const duration = Math.round(performance.now() - start);
+
+    return { ok: response.ok, status: response.status, data, duration };
+  } catch (error) {
+    const duration = Math.round(performance.now() - start);
+    return {
+      ok: false,
+      status: 0,
+      data: {
+        error: {
+          message: error instanceof Error ? error.message : "Network error",
+          type: "NetworkError",
+          code: 0,
+          fbtrace_id: "",
+        },
+      },
+      duration,
+    };
+  }
+}
+
+
+// Multipart upload for the /media endpoint (different from the Resumable Upload
+// flow above): standard Bearer auth + multipart form-data with the file.
 async function graphFetchFormData<T>(
   config: WhatsAppClientConfig,
   path: string,
@@ -446,7 +492,7 @@ export const phoneNumbersApi = {
   },
 
   getDisplayNameStatus(config: WhatsAppClientConfig, phoneNumberId: string) {
-    return graphFetch(config, `${phoneNumberId}?fields=display_name_status`, {
+    return graphFetch(config, `${phoneNumberId}?fields=name_status,new_name_status`, {
       method: "GET",
     });
   },
@@ -478,21 +524,48 @@ export const businessProfileApi = {
     fileLength: number,
     fileType: string,
     fileName: string,
-  ) {
-    return graphFetch(config, "app/uploads", {
+  ): Promise<ApiCallResult> {
+    if (!config.appId) {
+      return Promise.resolve({
+        ok: false,
+        status: 0,
+        data: {
+          error: {
+            message: "Add your Meta App ID in Settings — the Resumable Upload endpoint is /{app-id}/uploads.",
+            type: "ConfigError",
+            code: 0,
+            fbtrace_id: "",
+          },
+        },
+        duration: 0,
+      });
+    }
+    // Resumable Upload (step 1): open a session on the app node. Params go in the
+    // query string; Meta returns { id: "upload:<session>" }.
+    const params = new URLSearchParams({
+      file_length: String(fileLength),
+      file_type: fileType,
+      file_name: fileName,
+    });
+    return graphFetch(config, `${config.appId}/uploads?${params.toString()}`, {
       method: "POST",
-      body: JSON.stringify({
-        file_length: fileLength,
-        file_type: fileType,
-        file_name: fileName,
-      }),
     });
   },
 
-  uploadFileData(config: WhatsAppClientConfig, uploadSessionId: string, fileData: File) {
-    const formData = new FormData();
-    formData.append("file", fileData);
-    return graphFetchFormData(config, uploadSessionId, formData);
+  uploadFileData(config: WhatsAppClientConfig, uploadSessionId: string, fileData: File): Promise<ApiCallResult> {
+    return graphUploadFetch(config, uploadSessionId, fileData);
+  },
+
+  // Resumable Upload (step 3): attach the uploaded file handle to the business
+  // profile as its picture.
+  setProfilePicture(config: WhatsAppClientConfig, handle: string) {
+    return graphFetch(config, `${config.phoneNumberId}/whatsapp_business_profile`, {
+      method: "POST",
+      body: JSON.stringify({
+        messaging_product: MESSAGING_PRODUCT,
+        profile_picture_handle: handle,
+      }),
+    });
   },
 };
 
@@ -760,25 +833,6 @@ export const analyticsApi = {
     return graphFetch<PricingAnalyticsResponse>(
       config,
       `${config.wabaId}?${params.toString()}`,
-      { method: "GET" },
-    );
-  },
-
-  // Phone-number-level analytics including delivery rates.
-  getPhoneNumberAnalytics(
-    config: WhatsAppClientConfig,
-    startDate: string,
-    endDate: string,
-  ) {
-    const params = new URLSearchParams({
-      start: startDate,
-      end: endDate,
-      metric_types: JSON.stringify(["SENT", "DELIVERED", "READ"]),
-      granularity: "DAILY",
-    });
-    return graphFetch(
-      config,
-      `${config.phoneNumberId}/analytics?${params.toString()}`,
       { method: "GET" },
     );
   },

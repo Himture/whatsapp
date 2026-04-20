@@ -35,6 +35,7 @@ export default function SettingsPage() {
   const [businessPortfolioId, setBusinessPortfolioId] = useState("");
   const [apiVersion, setApiVersion] = useState<ApiVersion>(DEFAULT_API_VERSION);
   const [appSecret, setAppSecret] = useState("");
+  const [appId, setAppId] = useState("");
 
   const storeMode: "remote" | "local" | null =
     mode === "authenticated" ? "remote" : mode === "local" ? "local" : null;
@@ -47,6 +48,7 @@ export default function SettingsPage() {
     setBusinessPortfolioId("");
     setApiVersion(DEFAULT_API_VERSION);
     setAppSecret("");
+    setAppId("");
     setShowSecret(false);
     setShowForm(false);
   }
@@ -66,6 +68,7 @@ export default function SettingsPage() {
       businessPortfolioId: businessPortfolioId || undefined,
       apiVersion,
       appSecret: appSecret || undefined,
+      appId: appId || undefined,
     });
 
     if (result.success) {
@@ -213,6 +216,13 @@ export default function SettingsPage() {
                   {showSecret ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                 </button>
               </div>
+              <Input
+                label="App ID (optional)"
+                placeholder="From Meta App dashboard → Settings → Basic"
+                value={appId}
+                onChange={(e) => setAppId(e.target.value)}
+                description="Your Meta App ID. Needed only for profile-picture upload (Meta's Resumable Upload API)."
+              />
               <div className="flex gap-3 mt-2">
                 <Button type="submit" loading={saving}>
                   Save Configuration

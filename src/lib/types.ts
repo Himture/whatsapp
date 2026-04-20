@@ -21,6 +21,7 @@ export interface WhatsAppClientConfig {
   phoneNumberId: string;
   wabaId: string;
   businessPortfolioId?: string;
+  appId?: string;
   version: ApiVersion;
 }
 

@@ -23,7 +23,9 @@ export function DailyVolumeChart({ data }: { data: DailyStat[] }) {
               dataKey="date"
               tick={{ fontSize: 11 }}
               tickFormatter={(v: string) =>
-                new Date(v).toLocaleDateString([], { month: "short", day: "numeric" })
+                // v is a local YYYY-MM-DD; append T00:00 so it parses as local
+                // midnight (not UTC), or the label shifts back a day in the Americas.
+                new Date(`${v}T00:00`).toLocaleDateString([], { month: "short", day: "numeric" })
               }
             />
             <YAxis tick={{ fontSize: 11 }} />

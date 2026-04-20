@@ -115,6 +115,8 @@ export interface InboxStore {
   saveMessageStatus(status: Omit<MessageStatusRecord, "id" | "createdAt">): Promise<ActionResult>;
   markMessageRead(configId: string, waMessageId: string): Promise<ActionResult>;
   getMessageStatuses(configId: string, waMessageIds: string[]): Promise<MessageStatusRecord[]>;
+  getAllMessageStatuses(configId: string): Promise<MessageStatusRecord[]>;
+  getAllReceivedMessages(configId: string): Promise<ReceivedMessageRecord[]>;
 }
 
 // ─── Broadcasts ───────────────────────────────────────────────────────────────

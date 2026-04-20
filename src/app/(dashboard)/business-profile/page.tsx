@@ -54,6 +54,8 @@ function BusinessProfileContent() {
   const [uploadSessionId, setUploadSessionId] = useState("");
   const [uploadSessionResult, setUploadSessionResult] = useState<ApiCallResult | null>(null);
   const [uploadFileResult, setUploadFileResult] = useState<ApiCallResult | null>(null);
+  const [uploadHandle, setUploadHandle] = useState("");
+  const [setPicResult, setSetPicResult] = useState<ApiCallResult | null>(null);
 
   const [about, setAbout] = useState("");
   const [description, setDescription] = useState("");
@@ -78,6 +80,8 @@ function BusinessProfileContent() {
       setUploadSessionId("");
       setUploadSessionResult(null);
       setUploadFileResult(null);
+      setUploadHandle("");
+      setSetPicResult(null);
     }
   }
 
@@ -116,6 +120,19 @@ function BusinessProfileContent() {
         uploadFile,
       );
       setUploadFileResult(res);
+      const handle = (res.data as { h?: string })?.h;
+      if (res.ok && handle) setUploadHandle(handle);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSetProfilePicture() {
+    if (!activeConfig || !uploadHandle) return;
+    setLoading(true);
+    try {
+      const res = await businessProfileApi.setProfilePicture(activeConfig, uploadHandle);
+      setSetPicResult(res);
     } finally {
       setLoading(false);
     }
@@ -234,6 +251,11 @@ function BusinessProfileContent() {
         <TabsContent value="upload-picture">
           <Card>
             <CardContent className="pt-6 space-y-6">
+              {!activeConfig?.appId && (
+                <div className="rounded-[var(--radius-micro)] bg-amber-50 border border-amber-200 p-3 text-sm text-amber-900">
+                  Add your <strong>Meta App ID</strong> in Settings to enable this — Meta&apos;s Resumable Upload runs on the <code>/&#123;app-id&#125;/uploads</code> endpoint.
+                </div>
+              )}
               <div>
                 <p className="text-sm font-semibold text-near-black mb-2">
                   Step 1: Select a file and create an upload session
@@ -278,6 +300,21 @@ function BusinessProfileContent() {
                     Upload File
                   </Button>
                   <ResponseViewer result={uploadFileResult} />
+                </div>
+              )}
+
+              {uploadHandle && (
+                <div>
+                  <p className="text-sm font-semibold text-near-black mb-2">
+                    Step 3: Set as profile picture
+                  </p>
+                  <p className="text-xs text-warm-500 mb-4">
+                    File handle: {uploadHandle}
+                  </p>
+                  <Button onClick={handleSetProfilePicture} loading={loading}>
+                    Set Profile Picture
+                  </Button>
+                  <ResponseViewer result={setPicResult} />
                 </div>
               )}
             </CardContent>

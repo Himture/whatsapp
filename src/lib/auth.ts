@@ -5,8 +5,17 @@ import { headers } from "next/headers";
 import { getDb } from "@/db";
 
 function createAuth() {
+  // Fail fast if the session-signing secret is missing — otherwise Better Auth
+  // falls back to an insecure default and session cookies become forgeable.
+  const secret = process.env.BETTER_AUTH_SECRET;
+  if (!secret) {
+    throw new Error(
+      "BETTER_AUTH_SECRET is not set. Generate one with `openssl rand -base64 32` and add it to your environment.",
+    );
+  }
   return betterAuth({
     database: drizzleAdapter(getDb(), { provider: "pg" }),
+    secret,
     emailAndPassword: {
       enabled: true,
       minPasswordLength: 8,
@@ -30,6 +39,16 @@ function createAuth() {
     trustedOrigins: process.env.BETTER_AUTH_TRUSTED_ORIGINS
       ? process.env.BETTER_AUTH_TRUSTED_ORIGINS.split(",").map((o) => o.trim())
       : [],
+    // Throttle credential endpoints to blunt brute-force / credential-stuffing.
+    rateLimit: {
+      enabled: true,
+      window: 60,
+      max: 100,
+      customRules: {
+        "/sign-in/email": { window: 60, max: 5 },
+        "/sign-up/email": { window: 60, max: 5 },
+      },
+    },
     plugins: [nextCookies()],
   });
 }

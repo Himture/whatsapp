@@ -17,6 +17,7 @@ interface StoredConfig {
   isDefault: boolean;
   webhookVerifyToken: string;
   encryptedAppSecret: string | null;
+  appId: string | null;
   displayName: string | null;
   brandColor: string | null;
   createdAt: string;
@@ -39,6 +40,7 @@ async function storedToRecord(stored: StoredConfig): Promise<ConfigRecord> {
     isDefault: stored.isDefault,
     webhookVerifyToken: stored.webhookVerifyToken,
     appSecret,
+    appId: stored.appId ?? null,
     displayName: stored.displayName ?? null,
     brandColor: stored.brandColor ?? null,
     createdAt: stored.createdAt,
@@ -74,6 +76,7 @@ export class LocalStore implements DataStore {
         isDefault: isFirst,
         webhookVerifyToken: crypto.randomUUID(),
         encryptedAppSecret: input.appSecret ? await encryptValue(input.appSecret) : null,
+        appId: input.appId ?? null,
         displayName: input.displayName ?? null,
         brandColor: input.brandColor ?? null,
         createdAt: now,
@@ -118,6 +121,7 @@ export class LocalStore implements DataStore {
       if (input.appSecret !== undefined) {
         updated.encryptedAppSecret = input.appSecret ? await encryptValue(input.appSecret) : null;
       }
+      if (input.appId !== undefined) updated.appId = input.appId ?? null;
 
       await db.put(STORE_NAME, updated);
       return { success: true };
