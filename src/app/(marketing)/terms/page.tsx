@@ -17,7 +17,7 @@ export default function TermsPage() {
         <div>
           <h2 className="text-xl font-semibold">What this is</h2>
           <p className="mt-2 text-warm-500">
-            A software-as-a-service platform that provides a user interface for the WhatsApp Cloud API. Our software sends your messages directly from your browser to Meta&apos;s servers — we do not proxy, store, or resell messaging services.
+            Open-source software (MIT licensed) that gives you a console for the WhatsApp Cloud API. You can run it entirely yourself — locally or self-hosted — or use our optional managed hosting. Either way, your messages go directly from your browser to Meta&apos;s servers; we never proxy, store, or resell messaging.
           </p>
         </div>
 
@@ -34,7 +34,7 @@ export default function TermsPage() {
         <div>
           <h2 className="text-xl font-semibold">Our responsibilities</h2>
           <ul className="mt-2 space-y-1 text-warm-500 list-disc pl-5">
-            <li>We host the application and maintain its availability on a best-effort basis. Paid plans include specific uptime targets documented in the pricing page.</li>
+            <li>If you use managed hosting, we maintain its availability on a best-effort basis. When you self-host, availability is entirely under your control.</li>
             <li>We encrypt all access tokens at rest (AES-256-GCM).</li>
             <li>We do not read, inspect, or store the content of your WhatsApp messages.</li>
             <li>We notify you within 72 hours of any security incident affecting your account.</li>
@@ -44,24 +44,24 @@ export default function TermsPage() {
         <div>
           <h2 className="text-xl font-semibold">Billing</h2>
           <ul className="mt-2 space-y-1 text-warm-500 list-disc pl-5">
-            <li>Our charges are for the software only. We never add a markup to Meta&apos;s conversation charges.</li>
+            <li>The software is free and open source (MIT licensed). You only pay if you opt into managed hosting.</li>
+            <li>Any charges are for managed hosting of the software. We never add a markup to Meta&apos;s conversation charges.</li>
             <li>Meta bills you directly for WhatsApp conversation costs. We have no involvement in that billing.</li>
-            <li>Subscriptions renew monthly or annually as selected. Cancel anytime — the subscription ends at the next renewal date. No partial refunds for unused time within a billing period.</li>
-            <li>Indian customers are billed in INR via Razorpay. International customers via Stripe in USD.</li>
+            <li>Managed-hosting pricing and billing terms are agreed directly when you get in touch.</li>
           </ul>
         </div>
 
         <div>
           <h2 className="text-xl font-semibold">Cancellation</h2>
           <p className="mt-2 text-warm-500">
-            One-click cancellation from Settings. No retention screens, no phone call required, no email chains. After cancellation, you have 30 days to export your data before it is permanently deleted.
+            Self-hosted data is always yours — there is nothing to cancel. If you use managed hosting, cancel anytime by contacting us; you then have 30 days to export your data before it is permanently deleted.
           </p>
         </div>
 
         <div>
           <h2 className="text-xl font-semibold">Availability and SLA</h2>
           <p className="mt-2 text-warm-500">
-            Managed hosting targets 99.9% monthly uptime on Business and Agency plans. Starter and Free plans do not include a formal SLA. Current uptime and incident history are published on our status page.
+            Managed hosting is maintained on a best-effort basis. When you self-host, the app runs on infrastructure you control, so its availability is entirely up to you.
           </p>
         </div>
 

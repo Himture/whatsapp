@@ -29,7 +29,7 @@ export default function PrivacyPage() {
           <ul className="mt-2 space-y-1 text-warm-500 list-disc pl-5">
             <li>The content of your WhatsApp messages. They flow browser-to-Meta directly.</li>
             <li>Your Facebook personal profile, ads, Pages, or business accounts.</li>
-            <li>Payment methods — billing is handled by Razorpay (India) or Stripe. We store only the last 4 digits and cardholder name from Razorpay&apos;s tokenized response.</li>
+            <li>Payment methods — if you pay for managed hosting, billing runs through a third-party payment processor; we never see or store full card details.</li>
           </ul>
         </div>
 
@@ -61,7 +61,7 @@ export default function PrivacyPage() {
             <li>Meta (WhatsApp Cloud API) — your browser talks to them directly</li>
             <li>Vercel — application hosting</li>
             <li>Neon or Supabase — Postgres database (managed hosting only)</li>
-            <li>Razorpay and Stripe — payment processing</li>
+            <li>A third-party payment processor — managed-hosting billing only</li>
             <li>Better Auth — session management (self-contained, no third-party auth without your action)</li>
           </ul>
         </div>
@@ -69,7 +69,7 @@ export default function PrivacyPage() {
         <div>
           <h2 className="text-xl font-semibold">Data retention</h2>
           <p className="mt-2 text-warm-500">
-            Your data lives as long as your account does. Starter plan: webhook events retained 90 days, broadcast history 90 days. Business: one year. Agency: unlimited. You can manually delete anything sooner at any time.
+            In local mode, nothing leaves your browser, so retention is entirely in your hands. In managed hosting, your data lives as long as your account does and is fully removed within 30 days of account deletion — and you can export or delete anything sooner at any time.
           </p>
         </div>
 

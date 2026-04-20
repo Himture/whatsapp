@@ -3,7 +3,7 @@ import { SignupForm } from "./signup-form";
 
 export const metadata: Metadata = {
   title: "Create account",
-  description: "Sign up for WhatsApp API Manager — zero-markup messaging built for agencies and SMBs.",
+  description: "Create your WhatsApp API Manager account — a local-first console for the WhatsApp Cloud API. Bring your own Meta credentials; your token stays on your machine.",
 };
 
 export default function SignUpPage() {

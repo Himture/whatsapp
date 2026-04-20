@@ -125,9 +125,9 @@ function EmptyWorkspaces() {
     <div className="rounded-[var(--radius-comfortable)] border border-dashed border-black/15 bg-warm-white p-6">
       <div className="text-center mb-5">
         <Briefcase className="size-8 text-warm-500 mx-auto mb-2" aria-hidden="true" />
-        <h2 className="text-base font-semibold text-near-black">Run every client&apos;s WhatsApp from one dashboard</h2>
+        <h2 className="text-base font-semibold text-near-black">Run every WhatsApp number from one dashboard</h2>
         <p className="mt-1 text-sm text-warm-500 max-w-md mx-auto">
-          Each workspace gets its own credentials, unread counter, brand colour, and white-label name — so it feels like the client&apos;s own tool.
+          Each workspace keeps its own credentials, unread counter, brand colour and display name — so every number stays cleanly separated.
         </p>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5" aria-hidden="true">
@@ -243,7 +243,7 @@ export default function WorkspacesPage() {
       )}
 
       <div className="mt-8 text-xs text-warm-500">
-        Tip: agencies can give each workspace a display name and brand colour in Settings — useful for white-labelling client accounts.
+        Tip: give each workspace its own display name and brand colour in Settings to tell your numbers apart at a glance.
       </div>
     </div>
   );

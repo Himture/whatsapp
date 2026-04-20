@@ -170,11 +170,11 @@ Ten tables beyond the Better Auth tables:
 
 `FeatureGrid` (`src/components/marketing/feature-grid.tsx`) is the only shared marketing component.
 
-## Agency workspaces
+## Workspaces
 
 `src/app/(dashboard)/workspaces/page.tsx` — grid of all configs with per-workspace stats (unread inbox, running broadcasts, 7-day event volume). Click a card to set it as the active config and route to the dashboard. Aggregate totals shown when more than one workspace exists.
 
-White-label fields on `whatsapp_config`: `displayName` and `brandColor` used by the workspace card and surfaced in Settings. Agency plan's `whiteLabel` feature flag in `PLAN_LIMITS` gates full branding.
+Optional branding fields on `whatsapp_config`: `displayName` and `brandColor`, used by the workspace card and surfaced in Settings to tell numbers apart.
 
 ## Onboarding & polish features
 
@@ -188,5 +188,5 @@ White-label fields on `whatsapp_config`: `displayName` and `brandColor` used by 
 ## What's planned but not yet built
 
 - **Embedded Signup OAuth flow** — UI will replace manual token copy-paste. Requires Meta Tech Provider app approval first. Both paths will coexist: OAuth (recommended) and manual entry (power-user fallback).
-- **Full workspace isolation** — current workspaces are a UX layer over the existing multi-config architecture. A future rewrite adds `workspaceId` to all 9 business tables, per-workspace user invites, and cross-workspace permission boundaries. Planned when an agency customer needs it.
-- **DB retention cron** — plan-level retention limits are defined in `PLAN_LIMITS`; scheduled cleanup is deployment-specific (Vercel Cron, Neon scheduled queries) and will ship with the first hosted deployment.
+- **Full workspace isolation** — current workspaces are a UX layer over the existing multi-config architecture. A future rewrite adds `workspaceId` to all 9 business tables, per-workspace user invites, and cross-workspace permission boundaries. Planned if full multi-tenant isolation becomes necessary.
+- **DB retention cron** — managed hosting can prune old webhook events and broadcast history on a schedule (deployment-specific: Vercel Cron, Neon scheduled queries). Self-host keeps everything by default.

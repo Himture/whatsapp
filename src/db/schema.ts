@@ -18,8 +18,6 @@ export const user = pgTable("user", {
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
-  // free | starter | business | agency — drives per-plan retention and storage limits.
-  plan: text("plan").notNull().default("free"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -83,7 +81,7 @@ export const whatsappConfig = pgTable("whatsapp_config", {
   webhookVerifyToken: text("webhook_verify_token").notNull().default(""),
   // Optional: used to verify X-Hub-Signature-256 on incoming webhook payloads.
   appSecret: text("app_secret"),
-  // Workspace-level overrides used by the agency plan for white-labelling.
+  // Optional per-workspace branding (custom display name + accent colour).
   displayName: text("display_name"),
   brandColor: text("brand_color"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
