@@ -37,12 +37,12 @@ Keep PRs focused. One concern per PR. If you're changing the design system or ad
 
 | Path | Purpose |
 |------|---------|
-| `src/app/(marketing)` | Public landing, pricing, compare pages (`/vs/[competitor]`), privacy, terms |
+| `src/app/(marketing)` | Public landing, pricing, privacy, terms |
 | `src/app/(auth)` | Login, signup, "continue without account", demo mode entry |
 | `src/app/(dashboard)` | All authenticated pages including `/workspaces`, inbox, broadcasts, analytics |
 | `src/app/api/webhooks/[configId]` | Webhook receiver for Meta (GET challenge + POST with `after()`) |
 | `src/components/ui` | Design system primitives (Button, Card, Input, Dropdown, Badge, Tabs) |
-| `src/components/marketing` | Landing-page building blocks (MarkupCalculator, PricingTable, FeatureGrid, CompetitorSection) |
+| `src/components/marketing` | Landing-page building blocks (FeatureGrid) |
 | `src/components/dashboard` | Sidebar, header, dashboard shell (with DemoBanner, AuthGate) |
 | `src/components/onboarding` | First-run wizard |
 | `src/components/whatsapp` | WhatsApp-specific forms, TemplateGallery, WebhookSetupCallout, BroadcastSafetyCheck, DemoBanner |
@@ -53,8 +53,6 @@ Keep PRs focused. One concern per PR. If you're changing the design system or ad
 | `src/lib/encryption.ts` | Node crypto AES-256-GCM (server) |
 | `src/lib/whatsapp.ts` | Typed client for graph.facebook.com (messagesApi, templatesApi, analyticsApi, etc.) |
 | `src/lib/session-mode.tsx` | Local vs authenticated mode context via `useSyncExternalStore` |
-| `src/lib/competitor-data.ts` | Single source of truth for Wati/AiSensy/Interakt compare pages |
-| `src/lib/plan-data.ts` | Plan feature matrix for PricingTable |
 | `src/lib/template-presets.ts` | 10 Meta-approved template starters |
 | `src/lib/demo-seed.ts` | Seeded fake data for demo mode |
 | `src/hooks/use-local-storage.tsx` | `useSyncExternalStore`-based storage reads (avoids setState-in-effect) |

@@ -164,12 +164,11 @@ Ten tables beyond the Better Auth tables:
 
 `src/app/(marketing)/` — public-facing surface, server components where possible.
 
-- `/` — landing with interactive `MarkupCalculator` (client island) + `FeatureGrid` + `PricingTable`
-- `/pricing` — full comparison table reused from the landing
-- `/vs/[competitor]` — dynamic route with `generateStaticParams` pre-rendering wati/aisensy/interakt at build
+- `/` — local-first landing: hero + `FeatureGrid` + a "why local-first" section + an honest "inbound needs a deployed webhook" note
+- `/pricing` — self-host (free) vs optional managed-hosting cards, plus FAQ
 - `/privacy`, `/terms` — static content
 
-Shared components in `src/components/marketing/`. Competitor and plan data live in `src/lib/competitor-data.ts` and `src/lib/plan-data.ts`.
+`FeatureGrid` (`src/components/marketing/feature-grid.tsx`) is the only shared marketing component.
 
 ## Agency workspaces
 
