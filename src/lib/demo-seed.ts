@@ -8,7 +8,7 @@ export function isDemoActive(): boolean {
   return localStorage.getItem(DEMO_FLAG_KEY) === "1";
 }
 
-export function clearDemoFlag(): void {
+function clearDemoFlag(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(DEMO_FLAG_KEY);
 }

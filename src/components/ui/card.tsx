@@ -25,17 +25,6 @@ export function Card({ className, children, elevated = false, variant = "default
   );
 }
 
-export function CardHeader({ className, children, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div
-      className={cn("px-6 pt-6 pb-0", className)}
-      {...props}
-    >
-      {children}
-    </div>
-  );
-}
-
 export function CardContent({ className, children, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div className={cn("px-6 py-4", className)} {...props}>

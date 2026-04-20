@@ -43,10 +43,3 @@ export interface DataStore {
   deleteConfig(configId: string): Promise<ActionResult>;
   setDefaultConfig(configId: string): Promise<ActionResult>;
 }
-
-export interface SyncResult {
-  pushed: number;
-  pulled: number;
-  conflicts: number;
-  errors: string[];
-}

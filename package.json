@@ -12,8 +12,9 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint src/",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "knip": "DATABASE_URL=postgres://localhost:5432/knip knip",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
@@ -47,6 +48,7 @@
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.39.4",
     "eslint-config-next": "16.2.9",
+    "knip": "^6.23.0",
     "tailwindcss": "^4.3.2",
     "typescript": "^6.0.3"
   },

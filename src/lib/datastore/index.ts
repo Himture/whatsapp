@@ -4,10 +4,9 @@ import { LocalStore } from "./local-store";
 import { RemoteStore } from "./remote-store";
 import type { DataStore } from "./types";
 
-export type { DataStore, ConfigRecord, ConfigInput, ActionResult, SyncResult } from "./types";
+export type { DataStore, ConfigRecord, ConfigInput, ActionResult } from "./types";
 export { LocalStore } from "./local-store";
 export { RemoteStore } from "./remote-store";
-export { syncAll } from "./sync";
 
 let localStoreInstance: LocalStore | null = null;
 let remoteStoreInstance: RemoteStore | null = null;

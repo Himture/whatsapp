@@ -38,7 +38,3 @@ export function checkRateLimit(scope: string, key: string, opts: RateLimitOption
   existing.updatedAt = now;
   return true;
 }
-
-export function resetRateLimit(scope: string, key: string): void {
-  buckets.delete(`${scope}:${key}`);
-}

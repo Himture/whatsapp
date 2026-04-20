@@ -7,7 +7,6 @@ export const GITHUB_URL =
 // Block client-side broadcasts above this many recipients until the user confirms.
 export const BROADCAST_SAFETY_CHECK_THRESHOLD = 100;
 
-export const WHATSAPP_GRAPH_API_BASE = "https://graph.facebook.com" as const;
 // Current Graph API is v25.0 (Feb 2026). v18.0/v19.0 are already sunset and
 // v20.0 expires Sep 2026, so we only offer currently-supported versions and
 // default to a recent, stable one.
@@ -93,40 +92,12 @@ export const NAV_GROUPS = [
   { key: "utility", label: null },
 ] as const;
 
-export type NavGroup = (typeof NAV_GROUPS)[number]["key"];
-
-export const MESSAGE_TYPES = {
-  TEXT: "text",
-  IMAGE: "image",
-  AUDIO: "audio",
-  VIDEO: "video",
-  DOCUMENT: "document",
-  STICKER: "sticker",
-  LOCATION: "location",
-  CONTACTS: "contacts",
-  TEMPLATE: "template",
-  INTERACTIVE: "interactive",
-  REACTION: "reaction",
-} as const;
-
-export type MessageType = (typeof MESSAGE_TYPES)[keyof typeof MESSAGE_TYPES];
-
 export const MEDIA_TYPES = {
   IMAGE: { type: "image", accept: "image/jpeg,image/png", maxSize: 5 * 1024 * 1024 },
   AUDIO: { type: "audio", accept: "audio/aac,audio/mp4,audio/mpeg,audio/amr,audio/ogg", maxSize: 16 * 1024 * 1024 },
   VIDEO: { type: "video", accept: "video/mp4,video/3gp", maxSize: 16 * 1024 * 1024 },
   DOCUMENT: { type: "document", accept: "*/*", maxSize: 100 * 1024 * 1024 },
   STICKER: { type: "sticker", accept: "image/webp", maxSize: 500 * 1024 },
-} as const;
-
-export const HTTP_STATUS = {
-  OK: 200,
-  CREATED: 201,
-  BAD_REQUEST: 400,
-  UNAUTHORIZED: 401,
-  FORBIDDEN: 403,
-  NOT_FOUND: 404,
-  INTERNAL_SERVER_ERROR: 500,
 } as const;
 
 export const ENCRYPTION_ALGORITHM = "aes-256-gcm" as const;
@@ -184,26 +155,6 @@ export const TEMPLATE_LANGUAGES = [
   { code: "zh_TW", label: "Chinese (Traditional)" },
   { code: "ko", label: "Korean" },
 ] as const;
-
-// ─── Webhook event types ──────────────────────────────────────────────────────
-
-// Subscribable webhook fields (the `change.field` value Meta sends). Note that
-// message delivery "statuses" and "errors" are NOT separate subscription fields —
-// they arrive nested inside the "messages" field's value payload.
-export const WEBHOOK_EVENT_TYPES = [
-  "messages",
-  "message_template_status_update",
-  "message_template_quality_update",
-  "template_category_update",
-  "phone_number_quality_update",
-  "phone_number_name_update",
-  "account_update",
-  "account_review_update",
-  "business_capability_update",
-  "security",
-] as const;
-
-export type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number];
 
 // ─── API documentation links ──────────────────────────────────────────────────
 
