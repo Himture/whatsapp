@@ -14,7 +14,7 @@ const TRUST_POINTS = [
   { icon: Server, label: "Zero deploy — runs in your browser" },
   { icon: KeyRound, label: "Your token never leaves your machine" },
   { icon: Code2, label: "Open source, MIT licensed" },
-  { icon: ShieldCheck, label: "Official Cloud API — no ban risk" },
+  { icon: ShieldCheck, label: "Official Cloud API — no unofficial-client bans" },
 ];
 
 const WHY_LOCAL_FIRST = [
@@ -30,7 +30,7 @@ const WHY_LOCAL_FIRST = [
   },
   {
     icon: ShieldCheck,
-    title: "Official API, no ban risk",
+    title: "Built on Meta's official API",
     body: "Built entirely on Meta's official Cloud API — not a reverse-engineered web client like the unofficial libraries that get numbers banned.",
   },
   {

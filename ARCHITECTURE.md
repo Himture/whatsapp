@@ -64,7 +64,7 @@ Two implementations of the same algorithm:
 
 Both use AES-256-GCM. Both produce the same `iv:authTag:ciphertext` hex format. Web Crypto appends the 16-byte auth tag to the ciphertext buffer — the implementation slices it off explicitly to match the server-side format.
 
-Local mode auto-generates a 256-bit key and stores it in a separate IndexedDB database called `whatsapp-keyring`. Users can optionally switch to a passphrase-derived key (PBKDF2, 600,000 iterations). Cloud mode derives its key from the `ENCRYPTION_KEY` env var via scrypt.
+Local mode auto-generates a 256-bit key and stores it in a separate IndexedDB database called `whatsapp-keyring`. (A PBKDF2 passphrase-wrap of that key, 600,000 iterations, is implemented in `crypto.ts` but is not yet wired into the UI.) Cloud mode derives its key from the `ENCRYPTION_KEY` env var via scrypt, requiring at least 32 characters.
 
 ## Lazy DB / Auth
 
@@ -136,15 +136,15 @@ Broadcasts run client-side for both local and cloud modes. The `BroadcastsPage` 
 5. Update broadcast aggregate counts in real time.
 6. Support pause (cancel flag on a ref) and resume (re-run from pending/failed).
 
-Rate options are documented against Meta's Cloud API limits (250 msg/s max). Conservative defaults protect phone number quality ratings.
+Rate options stay well under Meta's Cloud API throughput (~80 messages/second per number by default, upgradable to 1,000 on request). Conservative defaults protect phone number quality ratings.
 
 ## Request history
 
-`src/hooks/use-request-history.tsx` stores the last 50 API calls in `localStorage` using lazy `useState` initialization. Entries are recorded manually by individual forms. The analytics page reads from this store to count successful message sends when webhook data is unavailable.
+`src/hooks/use-request-history.tsx` stores the last 50 API calls in `localStorage` using lazy `useState` initialization. Entries are recorded manually by individual forms and surfaced on the History page. (The analytics page does not read this store — its delivery stats come solely from recorded message-status events.)
 
 ## Database schema
 
-Ten tables beyond the Better Auth tables:
+Eleven tables beyond the Better Auth tables:
 
 | Table | Purpose |
 |-------|---------|

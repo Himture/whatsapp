@@ -16,14 +16,14 @@ Switching takes under an hour. Your WhatsApp account, phone number, and template
 2. Columns exported: `Name`, `Phone Number`, `Tags`, `Custom Attributes`.
 3. Import into our **Contacts** page. We match `Phone Number` → `phone` automatically.
 4. Custom attributes become notes. You can split them into tags after import using the bulk tag tool (coming soon).
-5. If you used AiSensy's chatbot flow builder, recreate the top three triggers in our **Flows** page. Most teams find the rule-based builder covers 80% of what they used.
+5. If you used AiSensy's chatbot flow builder, recreate the top three triggers in our **Auto-Replies** page. Most teams find the rule-based builder covers 80% of what they used.
 
 ## From Interakt
 
 1. In Interakt → **Contacts** → **Export**. Choose CSV or XLSX.
 2. Convert XLSX to CSV with Google Sheets if you exported XLSX.
 3. Import into our **Contacts** page.
-4. If you were paying for the Interakt **Sales CRM** add-on, note that we don't charge separately for contact management — it's included in every plan.
+4. If you were paying for the Interakt **Sales CRM** add-on, note that we don't charge for contact management at all — it's part of the free, open-source app. No add-ons, no plans.
 
 ## Templates (any platform)
 

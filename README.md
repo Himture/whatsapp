@@ -42,7 +42,7 @@ Works with Neon, Supabase, Railway, or any Postgres. The connection string is th
 
 | Page | What it does |
 |------|--------------|
-| Workspaces | Agency home — grid of all WhatsApp configs with per-workspace stats, click to switch |
+| Workspaces | Grid of all WhatsApp configs with per-workspace stats; click any card to switch the active config |
 | Inbox | Receive messages via webhook, conversation threads, inline reply (with optimistic updates) |
 | Contacts | Add, import CSV, tag, manage opt-outs, create lists/segments |
 | Broadcasts | Bulk send to contacts or lists, configurable rate limiting, pause/resume, pre-send safety check |

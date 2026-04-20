@@ -2,6 +2,12 @@
   "name": "whatsapp",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
+  "description": "A local-first console for the WhatsApp Cloud API — bring your own Meta credentials; runs in your browser.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Himture/whatsapp.git"
+  },
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",

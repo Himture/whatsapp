@@ -57,6 +57,6 @@ Keep PRs focused. One concern per PR. If you're changing the design system or ad
 | `src/lib/demo-seed.ts` | Seeded fake data for demo mode |
 | `src/hooks/use-local-storage.tsx` | `useSyncExternalStore`-based storage reads (avoids setState-in-effect) |
 
-## Agent instructions
+## Further reading
 
-See [AGENTS.md](AGENTS.md) for hard rules, architecture constraints, and Next.js 16.2 conventions used here. Linked from there: [ARCHITECTURE.md](ARCHITECTURE.md), [SECURITY.md](SECURITY.md), [MIGRATION.md](MIGRATION.md).
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the system design, [SECURITY.md](SECURITY.md) for the threat model and hardening posture, and [MIGRATION.md](MIGRATION.md) for moving from another platform.
