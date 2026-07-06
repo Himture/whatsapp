@@ -25,6 +25,12 @@ import type { ContactRecord, ContactListRecord, ActionResult } from "@/lib/store
 
 const ContactIdsSchema = z.array(UuidSchema).min(1).max(1000);
 
+// Mirror of the local store's normPhone so remote (Postgres) mode dedupes and
+// validates phone numbers identically to local mode.
+function normPhone(phone: string): string {
+  return phone.replace(/[\s\-().]/g, "");
+}
+
 export async function getContacts(configId?: string): Promise<ContactRecord[]> {
   const userId = await requireUserId();
   const cid = configId ? UuidSchema.parse(configId) : undefined;
@@ -43,6 +49,17 @@ export async function createContact(input: unknown): Promise<ActionResult & { id
     const data = ContactInputSchema.parse(input);
     const userId = await requireUserId();
     if (data.configId) await assertOwnsConfig(data.configId, userId);
+
+    // Validate + reject duplicate phone (parity with the local store), so a
+    // manual add can't create a second contact that double-sends.
+    const phoneKey = normPhone(data.phone);
+    if (!/^\+?\d{7,15}$/.test(phoneKey)) {
+      return { success: false, error: "Enter a valid phone number (7–15 digits, optional leading +)" };
+    }
+    const existing = await getDb().select({ phone: contact.phone }).from(contact).where(eq(contact.userId, userId));
+    if (existing.some((c) => normPhone(c.phone) === phoneKey)) {
+      return { success: false, error: "A contact with this phone already exists" };
+    }
 
     const [row] = await getDb()
       .insert(contact)

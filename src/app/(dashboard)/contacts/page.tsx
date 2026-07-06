@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo, startTransition } from "react";
-import { Search, Upload, Plus, Tag, Ban, Trash2, ListPlus, X } from "lucide-react";
+import { Search, Upload, Plus, Tag, Ban, Trash2, ListPlus, ListMinus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dropdown } from "@/components/ui/dropdown";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { LoadingPage } from "@/components/ui/loading";
@@ -12,6 +13,8 @@ import { notify } from "@/hooks/use-toast";
 import { useSessionMode } from "@/lib/session-mode";
 import { getContactStore } from "@/lib/stores";
 import type { ContactRecord, ContactListRecord } from "@/lib/stores";
+import { normPhone } from "@/lib/stores/local/contact-store";
+import { parseCsv, sniffDelimiter } from "@/lib/csv";
 
 function useContacts() {
   const { mode } = useSessionMode();
@@ -40,12 +43,20 @@ export default function ContactsPage() {
   const { contacts, lists, loading, reload, storeMode } = useContacts();
   const [search, setSearch] = useState("");
   const [selectedListId, setSelectedListId] = useState<string | null>(null);
-  const [memberIds, setMemberIds] = useState<Set<string> | null>(null);
+  // Members are stored with the list id they belong to, so a list switch is
+  // detectable in render (stale until the new load lands) without a synchronous
+  // reset inside an effect.
+  const [memberData, setMemberData] = useState<{ listId: string; ids: Set<string> } | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showListForm, setShowListForm] = useState(false);
   const [deleteContactId, setDeleteContactId] = useState<string | null>(null);
   const [deleteListId, setDeleteListId] = useState<string | null>(null);
+  const [importListId, setImportListId] = useState("");
+  const [importNewList, setImportNewList] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkListId, setBulkListId] = useState("");
+  const [showBulkDelete, setShowBulkDelete] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [fname, setFname] = useState("");
@@ -57,30 +68,58 @@ export default function ContactsPage() {
 
   const [listName, setListName] = useState("");
 
-  // Load member ids whenever a list is selected. The filter below bypasses
-  // memberIds when no list is selected, so a stale set after deselect is harmless.
+  // Refresh the set of member ids for the selected list. Called on select and
+  // after mutations (remove-from-list) so the filtered view stays accurate.
+  const refreshMembers = useCallback(async () => {
+    if (!selectedListId) { setMemberData(null); return; }
+    const store = getContactStore(storeMode);
+    const members = await store.getListMembers(selectedListId);
+    setMemberData({ listId: selectedListId, ids: new Set(members.map((m) => m.id)) });
+  }, [selectedListId, storeMode]);
+
+  // Load member ids whenever a list is selected. memberData records which list
+  // the ids belong to, so the filter can tell "still loading the new list" from
+  // "loaded and empty" without a synchronous reset in the effect body.
   useEffect(() => {
     if (!selectedListId) return;
     let cancelled = false;
     (async () => {
       const store = getContactStore(storeMode);
       const members = await store.getListMembers(selectedListId);
-      if (!cancelled) setMemberIds(new Set(members.map((m) => m.id)));
+      if (!cancelled) setMemberData({ listId: selectedListId, ids: new Set(members.map((m) => m.id)) });
     })();
     return () => { cancelled = true; };
   }, [selectedListId, storeMode]);
 
+  // Selecting a list (or changing the search) also clears bulk selection so a
+  // bulk Delete/Remove can never act on rows that aren't currently visible.
+  function selectList(id: string | null) {
+    setSelectedListId(id);
+    setSelectedIds(new Set());
+  }
+  function changeSearch(value: string) {
+    setSearch(value);
+    setSelectedIds(new Set());
+  }
+
+  // A list is selected but its members for THAT list haven't loaded yet — show
+  // nothing rather than every contact (or the previous list's members).
+  const members = memberData && memberData.listId === selectedListId ? memberData.ids : null;
+  const membersLoading = selectedListId !== null && members === null;
+
   const filtered = useMemo(() => {
+    if (membersLoading) return [];
     const term = search.toLowerCase();
+    const phoneTerm = normPhone(search);
     return contacts.filter((c) => {
-      if (selectedListId && memberIds && !memberIds.has(c.id)) return false;
+      if (selectedListId && members && !members.has(c.id)) return false;
       if (!term) return true;
       return (
         c.name.toLowerCase().includes(term) ||
-        c.phone.includes(search)
+        normPhone(c.phone).includes(phoneTerm)
       );
     });
-  }, [contacts, search, memberIds, selectedListId]);
+  }, [contacts, search, members, selectedListId, membersLoading]);
 
   async function handleCreate(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -133,7 +172,7 @@ export default function ContactsPage() {
     const store = getContactStore(storeMode);
     const result = await store.deleteList(deleteListId);
     if (result.success) {
-      if (selectedListId === deleteListId) setSelectedListId(null);
+      if (selectedListId === deleteListId) selectList(null);
       notify.success("List deleted"); void reload();
     } else notify.error(result.error ?? "Failed");
     setDeleteListId(null);
@@ -143,11 +182,16 @@ export default function ContactsPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     const text = await file.text();
-    const lines = text.split("\n").filter((l) => l.trim());
-    if (lines.length < 2) { notify.error("CSV must have a header row and at least one contact"); return; }
 
-    const headerLine = lines[0] ?? "";
-    const headers = headerLine.split(",").map((h) => h.trim().toLowerCase().replace(/"/g, ""));
+    // Sniff the delimiter from the first non-empty header line, then parse the
+    // whole file with a proper RFC-4180 tokenizer (quoted fields, embedded
+    // commas/newlines, escaped quotes, CRLF, BOM all handled).
+    const firstLine = text.replace(/^﻿/, "").split(/\r\n|\r|\n/).find((l) => l.trim()) ?? "";
+    const delimiter = sniffDelimiter(firstLine);
+    const rows = parseCsv(text, delimiter).filter((r) => r.some((cell) => cell.trim()));
+    if (rows.length < 2) { notify.error("CSV must have a header row and at least one contact"); return; }
+
+    const headers = (rows[0] ?? []).map((h) => h.trim().toLowerCase());
 
     let nameIdx = -1, phoneIdx = -1, emailIdx = -1, notesIdx = -1, tagsIdx = -1;
     for (let i = 0; i < headers.length; i++) {
@@ -164,23 +208,97 @@ export default function ContactsPage() {
       return;
     }
 
-    const toImport = lines.slice(1).map((line) => {
-      const cols = line.split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
+    const toImport = rows.slice(1).map((cols) => {
       return {
-        name: cols[nameIdx] ?? "",
-        phone: cols[phoneIdx] ?? "",
-        email: emailIdx >= 0 ? (cols[emailIdx] || undefined) : undefined,
-        notes: notesIdx >= 0 ? (cols[notesIdx] || undefined) : undefined,
-        tags: (tagsIdx >= 0 && cols[tagsIdx]) ? (cols[tagsIdx] as string).split(";").map((t) => t.trim()) : [],
+        name: (cols[nameIdx] ?? "").trim(),
+        phone: (cols[phoneIdx] ?? "").trim(),
+        email: emailIdx >= 0 ? (cols[emailIdx]?.trim() || undefined) : undefined,
+        notes: notesIdx >= 0 ? (cols[notesIdx]?.trim() || undefined) : undefined,
+        tags: (tagsIdx >= 0 && cols[tagsIdx]?.trim()) ? (cols[tagsIdx] as string).split(";").map((t) => t.trim()).filter(Boolean) : [],
       };
     }).filter((c) => c.name && c.phone);
 
     const store = getContactStore(storeMode);
-    const result = await store.importContacts(toImport);
-    notify.success(`Imported ${result.imported} contacts${result.errors.length ? `. ${result.errors.length} failed.` : ""}`);
+
+    // Resolve the target list: a typed new-list name takes precedence over the
+    // dropdown selection. Empty → import into "All contacts" (no list).
+    let listId: string | undefined = importListId || undefined;
+    let listLabel = lists.find((l) => l.id === importListId)?.name;
+    const newName = importNewList.trim();
+    if (newName) {
+      const created = await store.createList({ name: newName });
+      if (!created.success || !created.id) { notify.error(created.error ?? "Failed to create list"); return; }
+      listId = created.id;
+      listLabel = newName;
+    }
+
+    const result = await store.importContacts(toImport, { listId });
+    const parts = [`Imported ${result.imported}`];
+    if (result.skipped) parts.push(`skipped ${result.skipped} duplicate${result.skipped === 1 ? "" : "s"}`);
+    if (result.errors.length) parts.push(`${result.errors.length} failed`);
+    notify.success(parts.join(", ") + (listId && listLabel ? ` → ${listLabel}` : ""));
     if (fileRef.current) fileRef.current.value = "";
     setShowImport(false);
+    setImportListId(""); setImportNewList("");
     void reload();
+  }
+
+  function toggleSelected(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleBulkAddToList(listId: string) {
+    if (!listId || selectedIds.size === 0) return;
+    const store = getContactStore(storeMode);
+    const result = await store.addToList(listId, [...selectedIds]);
+    if (result.success) {
+      const name = lists.find((l) => l.id === listId)?.name ?? "list";
+      notify.success(`Added ${selectedIds.size} contact${selectedIds.size === 1 ? "" : "s"} to ${name}`);
+      setSelectedIds(new Set());
+      setBulkListId("");
+      void reload();
+    } else notify.error(result.error ?? "Failed to add to list");
+  }
+
+  async function handleRemoveFromList(contactId: string) {
+    if (!selectedListId) return;
+    const store = getContactStore(storeMode);
+    const result = await store.removeFromList(selectedListId, contactId);
+    if (result.success) {
+      notify.success("Removed from list");
+      await refreshMembers();
+      void reload();
+    } else notify.error(result.error ?? "Failed to remove from list");
+  }
+
+  async function handleBulkRemoveFromList() {
+    if (!selectedListId || selectedIds.size === 0) return;
+    const store = getContactStore(storeMode);
+    let removed = 0;
+    for (const id of selectedIds) {
+      const r = await store.removeFromList(selectedListId, id);
+      if (r.success) removed++;
+    }
+    const name = lists.find((l) => l.id === selectedListId)?.name ?? "list";
+    notify.success(`Removed ${removed} contact${removed === 1 ? "" : "s"} from ${name}`);
+    setSelectedIds(new Set());
+    await refreshMembers();
+    void reload();
+  }
+
+  async function handleConfirmBulkDelete() {
+    const store = getContactStore(storeMode);
+    const result = await store.deleteContacts([...selectedIds]);
+    if (result.success) {
+      notify.success(`Deleted ${result.deleted} contact${result.deleted === 1 ? "" : "s"}`);
+      setSelectedIds(new Set());
+      void reload();
+    } else notify.error(result.error ?? "Failed to delete");
+    setShowBulkDelete(false);
   }
 
   if (loading) return <LoadingPage />;
@@ -211,6 +329,25 @@ export default function ContactsPage() {
             <p className="text-sm text-warm-500 mb-3">
               CSV must include <code className="bg-warm-100 px-1 rounded text-xs">name</code> and <code className="bg-warm-100 px-1 rounded text-xs">phone</code> columns. Optional: <code className="bg-warm-100 px-1 rounded text-xs">email</code>, <code className="bg-warm-100 px-1 rounded text-xs">notes</code>, <code className="bg-warm-100 px-1 rounded text-xs">tags</code> (semicolon-separated).
             </p>
+            <div className="flex flex-col sm:flex-row sm:items-end gap-3 mb-4">
+              <div className="sm:w-56">
+                <Dropdown
+                  label="Add imported contacts to list"
+                  options={[{ label: "— No list —", value: "" }, ...lists.map((l) => ({ label: l.name, value: l.id }))]}
+                  value={importListId}
+                  onChange={(v) => { setImportListId(v); if (v) setImportNewList(""); }}
+                  placeholder="— No list —"
+                />
+              </div>
+              <div className="sm:w-56">
+                <Input
+                  label="or new list name"
+                  value={importNewList}
+                  onChange={(e) => { setImportNewList(e.target.value); if (e.target.value) setImportListId(""); }}
+                  placeholder="e.g. Newsletter"
+                />
+              </div>
+            </div>
             <input ref={fileRef} type="file" accept=".csv" onChange={handleCSVImport} className="text-sm" aria-label="Upload CSV file" />
           </CardContent>
         </Card>
@@ -255,7 +392,7 @@ export default function ContactsPage() {
             <li className="shrink-0">
               <button
                 type="button"
-                onClick={() => setSelectedListId(null)}
+                onClick={() => selectList(null)}
                 className={`w-full text-left px-3 py-1.5 rounded-[var(--radius-micro)] text-sm whitespace-nowrap ${!selectedListId ? "bg-white shadow-card text-near-black" : "text-warm-500 hover:text-near-black"}`}
               >
                 All contacts
@@ -266,7 +403,7 @@ export default function ContactsPage() {
               <li key={list.id} className="flex items-center group shrink-0">
                 <button
                   type="button"
-                  onClick={() => setSelectedListId(list.id === selectedListId ? null : list.id)}
+                  onClick={() => selectList(list.id === selectedListId ? null : list.id)}
                   className={`flex-1 text-left px-3 py-1.5 rounded-[var(--radius-micro)] text-sm truncate whitespace-nowrap ${list.id === selectedListId ? "bg-white shadow-card text-near-black" : "text-warm-500 hover:text-near-black"}`}
                 >
                   {list.name}
@@ -291,17 +428,42 @@ export default function ContactsPage() {
             <input
               type="search"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => changeSearch(e.target.value)}
               placeholder="Search by name or phone…"
               aria-label="Search contacts"
               className="w-full pl-9 pr-4 py-2 rounded-[var(--radius-micro)] border border-input-border bg-white text-sm text-near-black placeholder:text-warm-500 focus:border-notion-blue focus:outline-none focus:ring-2 focus:ring-focus-blue/20"
             />
           </div>
 
+          {selectedIds.size > 0 && (
+            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-[var(--radius-micro)] border border-notion-blue/30 bg-notion-blue/5 px-3 py-2">
+              <span className="text-sm font-medium text-near-black">{selectedIds.size} selected</span>
+              <div className="w-44">
+                <Dropdown
+                  options={[{ label: "Add to list…", value: "" }, ...lists.map((l) => ({ label: l.name, value: l.id }))]}
+                  value={bulkListId}
+                  onChange={(v) => { if (v) void handleBulkAddToList(v); }}
+                  placeholder="Add to list…"
+                />
+              </div>
+              {selectedListId && (
+                <Button variant="secondary" size="sm" onClick={() => void handleBulkRemoveFromList()}>
+                  <ListMinus className="size-4" /> Remove from list
+                </Button>
+              )}
+              <Button variant="secondary" size="sm" onClick={() => setShowBulkDelete(true)}>
+                <Trash2 className="size-4" /> Delete contact{selectedIds.size === 1 ? "" : "s"}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Clear</Button>
+            </div>
+          )}
+
           {filtered.length === 0 ? (
             <Card className="bg-warm-white border-none">
               <CardContent className="py-10 text-center text-sm text-warm-500">
-                {search
+                {membersLoading
+                  ? "Loading list…"
+                  : search
                   ? "No contacts match your search."
                   : selectedListId
                   ? "This list has no contacts yet. Add some from the All contacts view."
@@ -313,6 +475,25 @@ export default function ContactsPage() {
               <table className="w-full text-sm min-w-[480px]">
                 <thead className="bg-warm-white border-b border-black/10">
                   <tr>
+                    <th className="w-10 px-4 py-2.5 text-left">
+                      <input
+                        type="checkbox"
+                        className="rounded align-middle"
+                        aria-label="Select all contacts"
+                        checked={filtered.length > 0 && filtered.every((c) => selectedIds.has(c.id))}
+                        ref={(el) => {
+                          if (el) el.indeterminate = filtered.some((c) => selectedIds.has(c.id)) && !filtered.every((c) => selectedIds.has(c.id));
+                        }}
+                        onChange={(e) => {
+                          setSelectedIds((prev) => {
+                            const next = new Set(prev);
+                            if (e.target.checked) filtered.forEach((c) => next.add(c.id));
+                            else filtered.forEach((c) => next.delete(c.id));
+                            return next;
+                          });
+                        }}
+                      />
+                    </th>
                     <th className="px-4 py-2.5 text-left font-medium text-warm-500">Name</th>
                     <th className="px-4 py-2.5 text-left font-medium text-warm-500">Phone</th>
                     <th className="px-4 py-2.5 text-left font-medium text-warm-500 hidden md:table-cell">Tags</th>
@@ -322,7 +503,16 @@ export default function ContactsPage() {
                 </thead>
                 <tbody className="divide-y divide-black/5 bg-white">
                   {filtered.map((contact) => (
-                    <tr key={contact.id} className="hover:bg-warm-white/60 transition-colors">
+                    <tr key={contact.id} className={`transition-colors ${selectedIds.has(contact.id) ? "bg-notion-blue/5" : "hover:bg-warm-white/60"}`}>
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          className="rounded align-middle"
+                          aria-label={`Select ${contact.name}`}
+                          checked={selectedIds.has(contact.id)}
+                          onChange={() => toggleSelected(contact.id)}
+                        />
+                      </td>
                       <td className="px-4 py-3 font-medium text-near-black">{contact.name}</td>
                       <td className="px-4 py-3 text-warm-500 font-mono text-xs">{contact.phone}</td>
                       <td className="px-4 py-3 hidden md:table-cell">
@@ -351,10 +541,22 @@ export default function ContactsPage() {
                           >
                             <Ban className="size-3.5" aria-hidden="true" />
                           </button>
+                          {selectedListId && (
+                            <button
+                              type="button"
+                              onClick={() => void handleRemoveFromList(contact.id)}
+                              aria-label={`Remove ${contact.name} from this list`}
+                              title="Remove from this list"
+                              className="p-1.5 rounded text-warm-500 hover:text-near-black transition-colors"
+                            >
+                              <ListMinus className="size-3.5" aria-hidden="true" />
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => setDeleteContactId(contact.id)}
                             aria-label={`Delete ${contact.name}`}
+                            title="Delete contact everywhere"
                             className="p-1.5 rounded text-warm-500 hover:text-danger transition-colors"
                           >
                             <Trash2 className="size-3.5" aria-hidden="true" />
@@ -376,6 +578,15 @@ export default function ContactsPage() {
         onConfirm={handleConfirmDeleteContact}
         title="Delete contact?"
         description="This permanently removes the contact and any list memberships. The action cannot be undone."
+        confirmLabel="Delete"
+        destructive
+      />
+      <ConfirmDialog
+        open={showBulkDelete}
+        onClose={() => setShowBulkDelete(false)}
+        onConfirm={handleConfirmBulkDelete}
+        title={`Delete ${selectedIds.size} contact${selectedIds.size === 1 ? "" : "s"}?`}
+        description="This permanently removes the selected contacts and any list memberships. The action cannot be undone."
         confirmLabel="Delete"
         destructive
       />
