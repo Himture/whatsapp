@@ -35,6 +35,15 @@ export function checkRateLimit(scope: string, key: string, opts: RateLimitOption
   }
 
   existing.tokens = refilled - 1;
-  existing.updatedAt = now;
+  // Advance the clock only by the time represented by the whole tokens we
+  // actually credited, carrying the sub-token remainder forward. Resetting to
+  // `now` on every call would discard sub-interval elapsed time and under-refill
+  // the bucket under sustained load. When the bucket is full there's no
+  // fractional debt to carry, so snap to `now`.
+  if (refilled >= opts.capacity) {
+    existing.updatedAt = now;
+  } else if (refillCount > 0) {
+    existing.updatedAt += (refillCount / opts.refillPer) * opts.intervalMs;
+  }
   return true;
 }

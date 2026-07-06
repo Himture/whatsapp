@@ -2,6 +2,20 @@ import { getLocalDb } from "@/lib/stores/local/db";
 import { encryptValue } from "@/lib/crypto";
 
 const DEMO_FLAG_KEY = "demo-mode-active";
+const DEMO_ID_PREFIX = "demo-";
+const DEMO_CONFIG_ID = "demo-config";
+
+// Every store the demo touches. Keyed by "id" (string) except contactListMembers,
+// whose composite [listId, contactId] key is handled specially below.
+const DEMO_STORES = [
+  "configs", "contacts", "contactLists", "contactListMembers",
+  "webhookEvents", "receivedMessages", "messageStatuses",
+  "broadcasts", "broadcastRecipients", "scheduledMessages", "autoReplyRules",
+] as const;
+
+function isDemoId(key: unknown): key is string {
+  return typeof key === "string" && key.startsWith(DEMO_ID_PREFIX);
+}
 
 export function isDemoActive(): boolean {
   if (typeof window === "undefined") return false;
@@ -21,27 +35,31 @@ export async function seedDemoData(): Promise<void> {
   const now = new Date();
   const iso = (offsetMinutes: number) => new Date(now.getTime() - offsetMinutes * 60_000).toISOString();
 
-  const configId = "demo-config-" + crypto.randomUUID();
-  const existingConfigs = (await db.getAll("configs")) as Array<{ id: string }>;
-  if (existingConfigs.length === 0) {
-    await db.add("configs", {
-      id: configId,
-      name: "Demo Account",
-      encryptedAccessToken: await encryptValue("demo-token"),
-      phoneNumberId: "100000000000000",
-      wabaId: "100000000000001",
-      businessPortfolioId: null,
-      apiVersion: "v24.0",
-      isDefault: true,
-      webhookVerifyToken: "demo-verify-token",
-      encryptedAppSecret: null,
-      appId: null,
-      displayName: null,
-      brandColor: null,
-      createdAt: iso(60 * 24 * 30),
-      updatedAt: iso(5),
-    });
-  }
+  // Idempotent: if the demo is already seeded, leave it untouched (avoids
+  // duplicating rows or clobbering demo state on repeat calls).
+  if (await db.get("configs", DEMO_CONFIG_ID)) return;
+
+  // Always seed against a dedicated demo config that actually exists, so every
+  // child row below references a config id that is guaranteed to be present.
+  // A real user's own configs are never read or modified here.
+  const configId = DEMO_CONFIG_ID;
+  await db.put("configs", {
+    id: configId,
+    name: "Demo Account",
+    encryptedAccessToken: await encryptValue("demo-token"),
+    phoneNumberId: "100000000000000",
+    wabaId: "100000000000001",
+    businessPortfolioId: null,
+    apiVersion: "v24.0",
+    isDefault: true,
+    webhookVerifyToken: "demo-verify-token",
+    encryptedAppSecret: null,
+    appId: null,
+    displayName: null,
+    brandColor: null,
+    createdAt: iso(60 * 24 * 30),
+    updatedAt: iso(5),
+  });
 
   const contactsSeed = [
     ["Aarav Sharma", "+919876543210", "+919876543210", ["vip", "customer"]],
@@ -224,12 +242,22 @@ export async function clearDemoData(): Promise<void> {
   if (typeof window === "undefined") return;
   clearDemoFlag();
   const db = await getLocalDb();
-  const stores = [
-    "configs", "contacts", "contactLists", "contactListMembers",
-    "webhookEvents", "receivedMessages", "messageStatuses",
-    "broadcasts", "broadcastRecipients", "scheduledMessages", "autoReplyRules",
-  ] as const;
-  for (const store of stores) {
-    await db.clear(store);
+  // Delete ONLY demo-created rows, never whole stores — a user may have real
+  // data in local mode alongside the demo.
+  for (const store of DEMO_STORES) {
+    const keys = await db.getAllKeys(store);
+    for (const key of keys) {
+      if (store === "contactListMembers") {
+        // Composite [listId, contactId] key — remove only when both are demo ids.
+        const [listId, contactId] = Array.isArray(key) ? key : [];
+        if (isDemoId(listId) && isDemoId(contactId)) {
+          await db.delete(store, key);
+        }
+        continue;
+      }
+      if (isDemoId(key)) {
+        await db.delete(store, key);
+      }
+    }
   }
 }

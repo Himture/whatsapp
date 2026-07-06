@@ -96,9 +96,11 @@ export class LocalInboxStore implements InboxStore {
   async saveMessageStatus(status: Omit<MessageStatusRecord, "id" | "createdAt">): Promise<ActionResult> {
     try {
       const db = await getLocalDb();
-      await db.add("messageStatuses", {
+      // Idempotent: mirror the Postgres unique (waMessageId, status) constraint by
+      // using a deterministic id so a Meta redelivery updates instead of duplicating.
+      await db.put("messageStatuses", {
         ...status,
-        id: crypto.randomUUID(),
+        id: `${status.waMessageId}:${status.status}`,
         createdAt: new Date().toISOString(),
       });
       return { success: true };
@@ -116,6 +118,24 @@ export class LocalInboxStore implements InboxStore {
       return { success: true };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : "Failed to mark read" };
+    }
+  }
+
+  async markThreadRead(configId: string, phone: string): Promise<ActionResult> {
+    try {
+      const db = await getLocalDb();
+      const tx = db.transaction("receivedMessages", "readwrite");
+      const index = tx.store.index("configId");
+      const messages = (await index.getAll(configId)) as ReceivedMessageRecord[];
+      await Promise.all(
+        messages
+          .filter((m) => m.fromPhone === phone && m.status === "received")
+          .map((m) => tx.store.put({ ...m, status: "read" })),
+      );
+      await tx.done;
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Failed to mark thread read" };
     }
   }
 

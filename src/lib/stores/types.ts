@@ -53,7 +53,11 @@ export interface ContactStore {
   createContact(input: ContactInput): Promise<ActionResult & { id?: string }>;
   updateContact(id: string, input: Partial<ContactInput>): Promise<ActionResult>;
   deleteContact(id: string): Promise<ActionResult>;
-  importContacts(contacts: ContactInput[]): Promise<{ imported: number; errors: string[] }>;
+  deleteContacts(ids: string[]): Promise<ActionResult & { deleted: number }>;
+  importContacts(
+    contacts: ContactInput[],
+    options?: { listId?: string },
+  ): Promise<{ imported: number; skipped: number; errors: string[]; contactIds: string[] }>;
   setOptOut(id: string, optedOut: boolean): Promise<ActionResult>;
   getLists(): Promise<ContactListRecord[]>;
   createList(input: ContactListInput): Promise<ActionResult & { id?: string }>;
@@ -61,6 +65,37 @@ export interface ContactStore {
   addToList(listId: string, contactIds: string[]): Promise<ActionResult>;
   removeFromList(listId: string, contactId: string): Promise<ActionResult>;
   getListMembers(listId: string): Promise<ContactRecord[]>;
+}
+
+// ─── Media library ────────────────────────────────────────────────────────────
+
+export type MediaKind = "image" | "video" | "audio" | "document" | "sticker";
+
+export interface MediaAssetRecord {
+  id: string;            // the Meta media id
+  configId: string | null;
+  filename: string;
+  mimeType: string;
+  kind: MediaKind;
+  size: number;          // bytes
+  thumbnail: string | null; // small data URL for images, else null
+  createdAt: string;
+}
+
+export interface MediaAssetInput {
+  id: string;
+  configId?: string | null;
+  filename: string;
+  mimeType: string;
+  kind: MediaKind;
+  size: number;
+  thumbnail?: string | null;
+}
+
+export interface MediaStore {
+  getAssets(configId?: string): Promise<MediaAssetRecord[]>;
+  addAsset(input: MediaAssetInput): Promise<ActionResult>;
+  deleteAsset(id: string): Promise<ActionResult>;
 }
 
 // ─── Webhook events & received messages ──────────────────────────────────────
@@ -114,6 +149,7 @@ export interface InboxStore {
   saveReceivedMessage(msg: Omit<ReceivedMessageRecord, "id" | "createdAt">): Promise<ActionResult>;
   saveMessageStatus(status: Omit<MessageStatusRecord, "id" | "createdAt">): Promise<ActionResult>;
   markMessageRead(configId: string, waMessageId: string): Promise<ActionResult>;
+  markThreadRead(configId: string, phone: string): Promise<ActionResult>;
   getMessageStatuses(configId: string, waMessageIds: string[]): Promise<MessageStatusRecord[]>;
   getAllMessageStatuses(configId: string): Promise<MessageStatusRecord[]>;
   getAllReceivedMessages(configId: string): Promise<ReceivedMessageRecord[]>;
@@ -121,7 +157,7 @@ export interface InboxStore {
 
 // ─── Broadcasts ───────────────────────────────────────────────────────────────
 
-export type BroadcastStatus = "draft" | "running" | "paused" | "completed" | "failed";
+export type BroadcastStatus = "draft" | "scheduled" | "running" | "paused" | "completed" | "failed";
 export type RecipientStatus = "pending" | "sent" | "delivered" | "read" | "failed" | "skipped";
 
 export interface BroadcastRecord {

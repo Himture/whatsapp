@@ -7,6 +7,35 @@ import type {
 } from "./types";
 import { buildGraphApiUrl } from "./utils";
 
+// Shape of a WhatsApp/Graph API error body. Meta nests the most actionable
+// text in `error_data.details` (e.g. "Recipient phone number not in allowed
+// list"), which is often more specific than the top-level `message`.
+export interface GraphErrorBody {
+  error?: {
+    message?: string;
+    type?: string;
+    code?: number;
+    error_subcode?: number;
+    error_data?: { details?: string; messaging_product?: string };
+    fbtrace_id?: string;
+  };
+}
+
+// Turn a Graph API error body into a single human-readable line, combining the
+// message, the more specific details, and the numeric code for support/lookup.
+export function parseGraphError(data: unknown, fallback = "Request failed"): string {
+  const err = (data as GraphErrorBody | undefined)?.error;
+  if (!err) return fallback;
+  const parts: string[] = [];
+  if (err.message) parts.push(err.message);
+  const details = err.error_data?.details;
+  if (details && details !== err.message) parts.push(details);
+  const base = parts.join(" — ") || fallback;
+  if (typeof err.code !== "number") return base;
+  const code = err.error_subcode ? `${err.code}/${err.error_subcode}` : `${err.code}`;
+  return `${base} (code ${code})`;
+}
+
 // Every method in this file runs in the browser and hits graph.facebook.com
 // directly. The user's access token never touches our server.
 //
@@ -30,13 +59,17 @@ async function graphFetch<T>(
       },
     });
 
-    const data = await response.json();
+    // Some successful endpoints (media.delete, deregister, unsubscribe) return
+    // an empty or non-JSON body. Read the text first and only parse when there's
+    // something to parse, so an empty 200 isn't mislabeled a network error.
+    const text = await response.text();
     const duration = Math.round(performance.now() - start);
+    const data = (text ? JSON.parse(text) : { success: response.ok }) as T;
 
     return {
       ok: response.ok,
       status: response.status,
-      data: data as T,
+      data,
       duration,
     };
   } catch (error) {
@@ -78,8 +111,11 @@ async function graphUploadFetch(
       body: file,
     });
 
-    const data = await response.json();
+    // May return an empty body on success — read text first so an empty 200
+    // isn't turned into a bogus network error by response.json().
+    const text = await response.text();
     const duration = Math.round(performance.now() - start);
+    const data = text ? JSON.parse(text) : { success: response.ok };
 
     return { ok: response.ok, status: response.status, data, duration };
   } catch (error) {
@@ -120,13 +156,16 @@ async function graphFetchFormData<T>(
       body: formData,
     });
 
-    const data = await response.json();
+    // Read text first: a successful call with an empty/non-JSON body should not
+    // be surfaced as a network error by a throwing response.json().
+    const text = await response.text();
     const duration = Math.round(performance.now() - start);
+    const data = (text ? JSON.parse(text) : { success: response.ok }) as T;
 
     return {
       ok: response.ok,
       status: response.status,
-      data: data as T,
+      data,
       duration,
     };
   } catch (error) {
@@ -626,12 +665,6 @@ export const wabaApi = {
     });
   },
 
-  getTemplates(config: WhatsAppClientConfig) {
-    return graphFetch(config, `${config.wabaId}/message_templates`, {
-      method: "GET",
-    });
-  },
-
   overrideCallbackUrl(
     config: WhatsAppClientConfig,
     callbackUrl: string,
@@ -751,13 +784,47 @@ export interface TemplateCreateInput {
   allow_category_change?: boolean;
 }
 
+interface TemplateListPage {
+  data: TemplateRecord[];
+  paging?: { cursors?: { before?: string; after?: string }; next?: string };
+}
+
 export const templatesApi = {
-  list(config: WhatsAppClientConfig, fields = "id,name,status,category,language,components,quality_score,rejected_reason") {
-    return graphFetch<{ data: TemplateRecord[]; paging?: unknown }>(
+  // Meta paginates message_templates (100/page). Follow the `after` cursor until
+  // exhausted and concatenate every page, returning the full list in the same
+  // result shape callers expect. Capped at MAX_PAGES to guard against loops.
+  async list(config: WhatsAppClientConfig, fields = "id,name,status,category,language,components,quality_score,rejected_reason") {
+    const MAX_PAGES = 50;
+    const first = await graphFetch<TemplateListPage>(
       config,
       `${config.wabaId}/message_templates?fields=${fields}&limit=100`,
       { method: "GET" },
     );
+    if (!first.ok) return first;
+
+    const firstPage = first.data as TemplateListPage;
+    const collected: TemplateRecord[] = [...(firstPage.data ?? [])];
+    let paging = firstPage.paging;
+    let pages = 1;
+
+    while (pages < MAX_PAGES) {
+      const after = paging?.cursors?.after;
+      if (!paging?.next || !after) break;
+
+      const next = await graphFetch<TemplateListPage>(
+        config,
+        `${config.wabaId}/message_templates?fields=${fields}&limit=100&after=${encodeURIComponent(after)}`,
+        { method: "GET" },
+      );
+      if (!next.ok) return next;
+
+      const nextPage = next.data as TemplateListPage;
+      collected.push(...(nextPage.data ?? []));
+      paging = nextPage.paging;
+      pages++;
+    }
+
+    return { ...first, data: { data: collected } };
   },
 
   create(config: WhatsAppClientConfig, input: TemplateCreateInput) {

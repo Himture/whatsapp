@@ -256,6 +256,7 @@ export default function SettingsPage() {
                         {config.name}
                       </CardTitle>
                       {config.isDefault && <Badge variant="success">Default</Badge>}
+                      {/* Presence flag only — the plaintext app secret is never sent to the client. */}
                       {config.appSecret ? (
                         <span
                           className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-800"

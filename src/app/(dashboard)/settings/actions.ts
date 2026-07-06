@@ -28,7 +28,11 @@ export async function getConfigs() {
   return configs.map((config) => ({
     ...config,
     accessToken: decrypt(config.accessToken),
-    appSecret: config.appSecret ? decrypt(config.appSecret) : null,
+    // The plaintext app secret must never reach the browser — it's only needed
+    // server-side for webhook HMAC verification. The UI only consumes this as a
+    // presence indicator, so expose a redacted placeholder (truthy when set,
+    // null when absent) instead of the decrypted value.
+    appSecret: config.appSecret ? "set" : null,
     webhookVerifyToken: config.webhookVerifyToken,
   }));
 }

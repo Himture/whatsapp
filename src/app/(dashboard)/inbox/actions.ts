@@ -174,3 +174,50 @@ export async function getMessageStatuses(configId: string, waMessageIds: string[
     createdAt: r.createdAt.toISOString(),
   }));
 }
+
+export async function getAllMessageStatuses(configId: string): Promise<MessageStatusRecord[]> {
+  const cid = UuidSchema.parse(configId);
+  const userId = await requireUserId();
+  await assertOwnsConfig(cid, userId);
+
+  const rows = await getDb()
+    .select()
+    .from(messageStatus)
+    .where(eq(messageStatus.configId, cid));
+
+  return rows.map((r) => ({
+    id: r.id,
+    configId: r.configId,
+    waMessageId: r.waMessageId,
+    status: r.status as "sent" | "delivered" | "read" | "failed",
+    recipientPhone: r.recipientPhone ?? null,
+    timestamp: r.timestamp.toISOString(),
+    error: r.error as Record<string, unknown> | null,
+    createdAt: r.createdAt.toISOString(),
+  }));
+}
+
+export async function getAllReceivedMessages(configId: string): Promise<ReceivedMessageRecord[]> {
+  const cid = UuidSchema.parse(configId);
+  const userId = await requireUserId();
+  await assertOwnsConfig(cid, userId);
+
+  const rows = await getDb()
+    .select()
+    .from(receivedMessage)
+    .where(eq(receivedMessage.configId, cid))
+    .orderBy(receivedMessage.timestamp);
+
+  return rows.map((r) => ({
+    id: r.id,
+    configId: r.configId,
+    waMessageId: r.waMessageId,
+    fromPhone: r.fromPhone,
+    fromName: r.fromName ?? null,
+    messageType: r.messageType,
+    content: r.content as Record<string, unknown>,
+    status: r.status as "received" | "read" | "replied",
+    timestamp: r.timestamp.toISOString(),
+    createdAt: r.createdAt.toISOString(),
+  }));
+}

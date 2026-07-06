@@ -220,6 +220,7 @@ async function processPayload(
         const textBody =
           msg.type === "text" ? (msg.text?.body ?? "") :
           msg.type === "button" ? (msg.button?.text ?? "") :
+          msg.type === "interactive" ? interactiveReplyText(msg) :
           "";
 
         if (textBody) {
@@ -251,6 +252,20 @@ async function processPayload(
       }
     }
   }
+}
+
+// Interactive replies (button/list clicks) carry their text under
+// interactive.button_reply / interactive.list_reply. Surface the title (falling
+// back to the id) so keyword rules can match on button/list selections too.
+function interactiveReplyText(msg: MetaMessage): string {
+  const interactive = msg.interactive as
+    | {
+        button_reply?: { id?: string; title?: string };
+        list_reply?: { id?: string; title?: string };
+      }
+    | undefined;
+  const reply = interactive?.button_reply ?? interactive?.list_reply;
+  return reply?.title ?? reply?.id ?? "";
 }
 
 function buildMessageContent(msg: MetaMessage): Record<string, unknown> {
@@ -291,7 +306,7 @@ async function sendAutoReply(
       ...responsePayload,
     };
 
-    await fetch(
+    const response = await fetch(
       `https://graph.facebook.com/${apiVersion}/${config.phoneNumberId}/messages`,
       {
         method: "POST",
@@ -302,6 +317,16 @@ async function sendAutoReply(
         body: JSON.stringify(body),
       },
     );
+
+    // Meta returns a 400 (with an error body) for e.g. an expired 24h window or
+    // an invalid payload. Surface it rather than silently dropping the reply.
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => "");
+      console.error(
+        `[auto-reply] Meta API error (status ${response.status}) for config ${configId} to ${toPhone}:`,
+        errorBody,
+      );
+    }
   } catch (error) {
     console.error("[auto-reply] send error:", error);
   }

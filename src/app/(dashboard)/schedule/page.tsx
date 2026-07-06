@@ -147,7 +147,17 @@ function ScheduleContent() {
         const byId = new Map(configsRef.current.map((c) => [c.id, c]));
         for (const msg of due) {
           const cfg = byId.get(msg.configId);
-          if (cfg) await sendScheduled(msg, toClientConfig(cfg));
+          if (cfg) {
+            await sendScheduled(msg, toClientConfig(cfg));
+          } else {
+            // Its config was deleted — without this it would sit "pending"
+            // forever, retried every tick with no config to send it. Fail it.
+            await store.updateScheduledMessage(msg.id, {
+              status: "failed",
+              error: "Config no longer exists",
+              processedAt: new Date().toISOString(),
+            });
+          }
         }
         void load();
       } finally {
