@@ -11,8 +11,10 @@ import { LoadingPage } from "@/components/ui/loading";
 import { notify } from "@/hooks/use-toast";
 import { useSessionMode } from "@/lib/session-mode";
 import { useWhatsAppConfig } from "@/hooks/use-whatsapp-config";
-import { getBroadcastStore, getContactStore } from "@/lib/stores";
+import { getBroadcastStore, getContactStore, type MediaKind } from "@/lib/stores";
+import { MediaField } from "@/components/whatsapp/media-field";
 import { templatesApi, type TemplateRecord } from "@/lib/whatsapp";
+import { extractTemplateFields, buildTemplateComponents, renderTemplatePreview } from "@/lib/template-vars";
 import { BROADCAST_RATE_OPTIONS, ROUTES } from "@/lib/constants";
 import type { ContactRecord, ContactListRecord } from "@/lib/stores";
 import Link from "next/link";
@@ -21,7 +23,23 @@ const RATE_OPTIONS = BROADCAST_RATE_OPTIONS.map((o) => ({ label: o.label, value:
 const MESSAGE_TYPE_OPTIONS = [
   { label: "Text message", value: "text" },
   { label: "Template", value: "template" },
+  { label: "Media", value: "media" },
+  { label: "Interactive buttons", value: "interactive" },
 ];
+
+const MEDIA_KIND_OPTIONS: Array<{ label: string; value: MediaKind }> = [
+  { label: "Image", value: "image" },
+  { label: "Video", value: "video" },
+  { label: "Document", value: "document" },
+];
+
+const MAX_REPLY_BUTTONS = 3;
+
+// Decide id vs link the same way the rest of the app does: a value starting with
+// http(s) is a public URL, anything else is treated as a Media ID.
+function mediaSourceToObject(source: string): { id?: string; link?: string } {
+  return /^https?:\/\//i.test(source.trim()) ? { link: source.trim() } : { id: source.trim() };
+}
 
 export default function NewBroadcastPage() {
   const router = useRouter();
@@ -34,7 +52,12 @@ export default function NewBroadcastPage() {
   const [textBody, setTextBody] = useState("");
   const [templateName, setTemplateName] = useState("");
   const [templateLanguage, setTemplateLanguage] = useState("en");
-  const [templateVars, setTemplateVars] = useState("");
+  const [templateValues, setTemplateValues] = useState<Record<string, string>>({});
+  const [mediaKind, setMediaKind] = useState<MediaKind>("image");
+  const [mediaSource, setMediaSource] = useState("");
+  const [mediaCaption, setMediaCaption] = useState("");
+  const [interactiveBody, setInteractiveBody] = useState("");
+  const [buttonTitles, setButtonTitles] = useState<string[]>([""]);
   const [rateLimitMs, setRateLimitMs] = useState("100");
   const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
   const [selectedListIds, setSelectedListIds] = useState<string[]>([]);
@@ -106,18 +129,58 @@ export default function NewBroadcastPage() {
       contactId: c.id,
     }));
 
-    const payload: Record<string, unknown> = messageType === "text"
-      ? { type: "text", text: { body: textBody } }
-      : {
-          type: "template",
-          template: {
-            name: templateName,
-            language: { code: templateLanguage },
-            components: templateVars
-              ? [{ type: "body", parameters: templateVars.split(",").map((v) => ({ type: "text", text: v.trim() })) }]
-              : [],
+    // Every input the selected template requires must be filled — the form is
+    // generated from the template, so this can't be malformed by the user.
+    if (messageType === "template") {
+      const missing = templateFields.find((f) => !(templateValues[f.key] ?? "").trim());
+      if (missing) { setError(`Fill in: ${missing.label}`); return; }
+    }
+
+    if (messageType === "media" && !mediaSource.trim()) {
+      setError("Add a media source (Media ID or URL)"); return;
+    }
+
+    const trimmedButtons = buttonTitles.map((t) => t.trim()).filter(Boolean);
+    if (messageType === "interactive") {
+      if (!interactiveBody.trim()) { setError("Enter the message body"); return; }
+      if (trimmedButtons.length === 0) { setError("Add at least one button"); return; }
+    }
+
+    let payload: Record<string, unknown>;
+    if (messageType === "text") {
+      payload = { type: "text", text: { body: textBody } };
+    } else if (messageType === "template") {
+      payload = {
+        type: "template",
+        template: {
+          name: templateName,
+          language: { code: templateLanguage },
+          components: buildTemplateComponents(selectedTemplate, templateValues),
+        },
+      };
+    } else if (messageType === "media") {
+      payload = {
+        type: "media",
+        media: {
+          kind: mediaKind,
+          ...mediaSourceToObject(mediaSource),
+          ...(mediaCaption.trim() ? { caption: mediaCaption.trim() } : {}),
+        },
+      };
+    } else {
+      payload = {
+        type: "interactive",
+        interactive: {
+          body: { text: interactiveBody },
+          action: {
+            buttons: trimmedButtons.map((title, i) => ({
+              type: "reply",
+              reply: { id: `btn_${i + 1}`, title },
+            })),
           },
-        };
+        },
+      };
+    }
 
     setSaving(true);
     setError(null);
@@ -156,6 +219,12 @@ export default function NewBroadcastPage() {
     }
   }
 
+  // Inspect the selected template to drive a generated, required input per
+  // variable it declares, plus a live preview of the resolved message.
+  const selectedTemplate = templates.find((t) => t.name === templateName);
+  const templateFields = extractTemplateFields(selectedTemplate);
+  const preview = renderTemplatePreview(selectedTemplate, templateValues);
+
   if (loading) return <LoadingPage />;
 
   return (
@@ -192,7 +261,7 @@ export default function NewBroadcastPage() {
         <Card>
           <CardContent className="pt-6">
             <CardTitle className="text-base mb-4">Message Content</CardTitle>
-            {messageType === "text" ? (
+            {messageType === "text" && (
               <div>
                 <label className="block text-sm font-medium text-near-black mb-1">Message body <span className="text-danger">*</span></label>
                 <textarea
@@ -204,19 +273,137 @@ export default function NewBroadcastPage() {
                   className="w-full rounded-[var(--radius-micro)] border border-input-border bg-white px-3 py-2 text-sm text-near-black placeholder:text-warm-500 focus:border-notion-blue focus:outline-none focus:ring-2 focus:ring-focus-blue/20"
                 />
               </div>
-            ) : (
+            )}
+            {messageType === "template" && (
               <div className="flex flex-col gap-3">
                 {approvedTemplateOptions.length === 0 ? (
                   <p className="text-sm text-warm-500">No approved templates. <Link href={ROUTES.TEMPLATES} className="text-notion-blue hover:underline">Create one →</Link></p>
                 ) : (
                   <>
-                    <Dropdown label="Template" options={approvedTemplateOptions} value={templateName} onChange={setTemplateName} required />
+                    <Dropdown
+                      label="Template"
+                      options={approvedTemplateOptions}
+                      value={templateName}
+                      onChange={(v) => { setTemplateName(v); setTemplateValues({}); }}
+                      required
+                    />
                     {templateLangOptions.length > 1 && (
                       <Dropdown label="Language" options={templateLangOptions} value={templateLanguage} onChange={setTemplateLanguage} />
                     )}
-                    <Input label="Body variables (comma-separated)" value={templateVars} onChange={(e) => setTemplateVars(e.target.value)} placeholder="John, Order #1234, Dec 25" description="Values substituted into {{1}}, {{2}}, … in the template body." />
+
+                    {templateName && templateFields.length === 0 && (
+                      <p className="text-xs text-warm-500">This template has no variables — nothing to fill in.</p>
+                    )}
+                    {templateFields.map((field) => (
+                      <Input
+                        key={field.key}
+                        label={field.label}
+                        value={templateValues[field.key] ?? ""}
+                        onChange={(e) => setTemplateValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                        placeholder={
+                          field.kind === "media"
+                            ? "1234567890 or https://example.com/file"
+                            : field.example ?? "Enter value"
+                        }
+                        description={field.kind === "media" ? "Paste a Media ID from the Media page (upload → copy ID), or a public https URL." : undefined}
+                        required
+                      />
+                    ))}
+
+                    {templateName && (preview.headerText || preview.headerMedia || preview.body || preview.buttons.length > 0) && (
+                      <div className="mt-1 rounded-[var(--radius-micro)] border border-black/10 bg-warm-white p-3">
+                        <p className="text-xs font-medium text-warm-500 uppercase tracking-wide mb-2">Preview</p>
+                        {preview.headerMedia && (
+                          <p className="text-xs text-warm-500 mb-1">📎 {preview.headerMedia.format} header — {preview.headerMedia.value || "no media set"}</p>
+                        )}
+                        {preview.headerText && <p className="text-sm font-semibold text-near-black">{preview.headerText}</p>}
+                        {preview.body && <p className="text-sm text-near-black whitespace-pre-wrap mt-1">{preview.body}</p>}
+                        {preview.footer && <p className="text-xs text-warm-500 mt-1">{preview.footer}</p>}
+                        {preview.buttons.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {preview.buttons.map((b, i) => (
+                              <span key={i} className="rounded-[var(--radius-micro)] border border-notion-blue/40 text-notion-blue px-2 py-0.5 text-xs">{b.text}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </>
                 )}
+              </div>
+            )}
+            {messageType === "media" && (
+              <div className="flex flex-col gap-3">
+                <Dropdown
+                  label="Media type"
+                  options={MEDIA_KIND_OPTIONS}
+                  value={mediaKind}
+                  onChange={(v) => { setMediaKind(v as MediaKind); setMediaSource(""); }}
+                />
+                <MediaField
+                  label="Media source"
+                  value={mediaSource}
+                  onChange={setMediaSource}
+                  kindFilter={mediaKind}
+                  description="Paste a Media ID, a public https URL, or pick from the library."
+                  required
+                />
+                <Input
+                  label="Caption"
+                  value={mediaCaption}
+                  onChange={(e) => setMediaCaption(e.target.value)}
+                  placeholder="Optional caption"
+                />
+              </div>
+            )}
+            {messageType === "interactive" && (
+              <div className="flex flex-col gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-near-black mb-1">Body text <span className="text-danger">*</span></label>
+                  <textarea
+                    value={interactiveBody}
+                    onChange={(e) => setInteractiveBody(e.target.value)}
+                    placeholder="What would you like to do?"
+                    rows={3}
+                    className="w-full rounded-[var(--radius-micro)] border border-input-border bg-white px-3 py-2 text-sm text-near-black placeholder:text-warm-500 focus:border-notion-blue focus:outline-none focus:ring-2 focus:ring-focus-blue/20"
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-near-black">Reply buttons (max {MAX_REPLY_BUTTONS})</span>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setButtonTitles((prev) => prev.length < MAX_REPLY_BUTTONS ? [...prev, ""] : prev)}
+                      disabled={buttonTitles.length >= MAX_REPLY_BUTTONS}
+                    >
+                      Add button
+                    </Button>
+                  </div>
+                  {buttonTitles.map((title, i) => (
+                    <div key={i} className="flex items-end gap-2">
+                      <div className="flex-1">
+                        <Input
+                          label={`Button ${i + 1} title`}
+                          value={title}
+                          onChange={(e) => setButtonTitles((prev) => prev.map((t, j) => j === i ? e.target.value : t))}
+                          placeholder="e.g. Yes"
+                        />
+                      </div>
+                      {buttonTitles.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setButtonTitles((prev) => prev.filter((_, j) => j !== i))}
+                        >
+                          Remove
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </CardContent>
@@ -266,9 +453,12 @@ export default function NewBroadcastPage() {
                 ))}
               </div>
               <p className="mt-1.5 text-xs text-warm-500">
-                Total recipients: {new Set([...selectedContactIds, ...selectedListIds]).size > 0
-                  ? `${selectedContactIds.length} contacts + ${selectedListIds.length} list(s)`
-                  : "0"}
+                {selectedContactIds.length === 0 && selectedListIds.length === 0
+                  ? "No recipients selected yet. Pick a list above, individual contacts, or both."
+                  : `Selected: ${selectedContactIds.length} contact${selectedContactIds.length === 1 ? "" : "s"}` +
+                    ` + ${selectedListIds.length} list${selectedListIds.length === 1 ? "" : "s"}` +
+                    ` (≈${selectedListIds.reduce((sum, id) => sum + (lists.find((l) => l.id === id)?.memberCount ?? 0), 0) + selectedContactIds.length} recipients before dedupe). ` +
+                    "Duplicates and opted-out contacts are removed on send."}
               </p>
             </div>
           </CardContent>

@@ -41,7 +41,7 @@ export class LocalBroadcastStore implements BroadcastStore {
         userId: LOCAL_USER_ID,
         configId: input.configId,
         name: input.name,
-        status: input.scheduledAt ? "draft" : "draft",
+        status: input.scheduledAt ? "scheduled" : "draft",
         messageType: input.messageType,
         payload: input.payload,
         totalRecipients: recipients.length,

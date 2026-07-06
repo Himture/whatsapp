@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, startTransition } from "react";
-import { Plus, RefreshCw, Trash2, Eye, ExternalLink } from "lucide-react";
+import { Plus, RefreshCw, Trash2, Eye, ExternalLink, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +14,7 @@ import { notify } from "@/hooks/use-toast";
 import { useWhatsAppConfig } from "@/hooks/use-whatsapp-config";
 import { ConfigGuard } from "@/components/whatsapp/config-guard";
 import { TemplateGallery } from "@/components/whatsapp/template-gallery";
-import { templatesApi, type TemplateRecord, type TemplateComponent } from "@/lib/whatsapp";
+import { templatesApi, parseGraphError, type TemplateRecord, type TemplateComponent } from "@/lib/whatsapp";
 import type { TemplatePreset } from "@/lib/template-presets";
 import { TEMPLATE_CATEGORIES, TEMPLATE_LANGUAGES } from "@/lib/constants";
 
@@ -55,6 +55,7 @@ function TemplatesContent() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [editTarget, setEditTarget] = useState<TemplateRecord | null>(null);
   const [preview, setPreview] = useState<TemplateRecord | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TemplateRecord | null>(null);
 
@@ -86,7 +87,23 @@ function TemplatesContent() {
     void load();
   }
 
+  function resetForm() {
+    setTName(""); setTCategory("MARKETING"); setTLanguage("en");
+    setTBody(""); setTHeader(""); setTFooter(""); setTButtons([]);
+  }
+
+  function toggleCreateForm() {
+    if (showForm) {
+      setShowForm(false);
+      return;
+    }
+    setEditTarget(null);
+    resetForm();
+    setShowForm(true);
+  }
+
   function applyPreset(preset: TemplatePreset) {
+    setEditTarget(null);
     setTName(preset.input.name);
     setTCategory(preset.input.category);
     setTLanguage(preset.input.language);
@@ -99,6 +116,31 @@ function TemplatesContent() {
     setShowForm(true);
   }
 
+  // Meta only lets you edit a template's components (header/body/footer/buttons),
+  // and only while it's APPROVED or REJECTED. Name, language and category are
+  // immutable, so we pre-fill them but lock the inputs in edit mode.
+  function startEdit(template: TemplateRecord) {
+    setEditTarget(template);
+    setTName(template.name);
+    setTCategory(template.category);
+    setTLanguage(template.language);
+    const findText = (type: "HEADER" | "BODY" | "FOOTER") =>
+      template.components.find((c) => c.type === type)?.text ?? "";
+    setTHeader(findText("HEADER"));
+    setTBody(findText("BODY"));
+    setTFooter(findText("FOOTER"));
+    const buttonsComp = template.components.find((c) => c.type === "BUTTONS");
+    setTButtons(
+      buttonsComp?.buttons?.map((b) => ({
+        _key: crypto.randomUUID(),
+        type: b.type,
+        text: b.text,
+        url: b.url ?? "",
+      })) ?? [],
+    );
+    setShowForm(true);
+  }
+
   async function handleConfirmDelete() {
     if (!activeConfig || !deleteTarget) return;
     const result = await templatesApi.deleteByName(activeConfig, deleteTarget.name, deleteTarget.language);
@@ -107,7 +149,7 @@ function TemplatesContent() {
     setDeleteTarget(null);
   }
 
-  async function handleCreate(e: React.SyntheticEvent<HTMLFormElement>) {
+  async function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!activeConfig) return;
     setSaving(true);
@@ -127,6 +169,23 @@ function TemplatesContent() {
       });
     }
 
+    // Edit mode: name/language/category are immutable on Meta's side, so we only
+    // send the components to the update endpoint.
+    if (editTarget) {
+      const result = await templatesApi.update(activeConfig, editTarget.id, { components });
+      setSaving(false);
+      if (result.ok) {
+        setShowForm(false);
+        setEditTarget(null);
+        resetForm();
+        notify.success("Template updated");
+        void load();
+      } else {
+        notify.error(parseGraphError(result.data, "Failed to update template"));
+      }
+      return;
+    }
+
     const result = await templatesApi.create(activeConfig, {
       name: tName.toLowerCase().replace(/\s+/g, "_"),
       language: tLanguage,
@@ -138,12 +197,11 @@ function TemplatesContent() {
     setSaving(false);
     if (result.ok) {
       setShowForm(false);
-      setTName(""); setTBody(""); setTHeader(""); setTFooter(""); setTButtons([]);
+      resetForm();
       notify.success("Template submitted for review");
       void load();
     } else {
-      const errData = result.data as { error?: { message?: string } };
-      notify.error(errData?.error?.message ?? "Failed to create template");
+      notify.error(parseGraphError(result.data, "Failed to create template"));
     }
   }
 
@@ -160,7 +218,7 @@ function TemplatesContent() {
           <Button variant="secondary" size="sm" loading={refreshing} onClick={handleRefresh} aria-label="Refresh templates">
             <RefreshCw className="size-4" aria-hidden="true" />
           </Button>
-          <Button size="sm" onClick={() => setShowForm(!showForm)}>
+          <Button size="sm" onClick={toggleCreateForm}>
             <Plus className="size-4" aria-hidden="true" /> New Template
           </Button>
         </div>
@@ -169,12 +227,18 @@ function TemplatesContent() {
       {showForm && (
         <Card className="mb-6">
           <CardContent className="pt-6">
-            <CardTitle className="text-base mb-4">New Template</CardTitle>
-            <form onSubmit={handleCreate} className="flex flex-col gap-4">
+            <CardTitle className="text-base mb-4">{editTarget ? `Edit "${editTarget.name}"` : "New Template"}</CardTitle>
+            {editTarget && (
+              <p className="mb-4 text-xs text-warm-500">
+                Meta only allows editing the components (header, body, footer, buttons) of an
+                APPROVED or REJECTED template. Name, language and category are locked.
+              </p>
+            )}
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Input label="Template name" value={tName} onChange={(e) => setTName(e.target.value)} placeholder="order_confirmation" required description="Lowercase, underscores only" />
-                <Dropdown label="Category" options={CATEGORY_OPTIONS} value={tCategory} onChange={setTCategory} />
-                <Dropdown label="Language" options={LANGUAGE_OPTIONS} value={tLanguage} onChange={setTLanguage} />
+                <Input label="Template name" value={tName} onChange={(e) => setTName(e.target.value)} placeholder="order_confirmation" required disabled={editTarget !== null} description={editTarget ? "Cannot be changed after creation" : "Lowercase, underscores only"} />
+                <Dropdown label="Category" options={CATEGORY_OPTIONS} value={tCategory} onChange={setTCategory} disabled={editTarget !== null} />
+                <Dropdown label="Language" options={LANGUAGE_OPTIONS} value={tLanguage} onChange={setTLanguage} disabled={editTarget !== null} />
               </div>
               <Input label="Header (optional)" value={tHeader} onChange={(e) => setTHeader(e.target.value)} placeholder="Your order is ready!" description="Plain text header. Use {{1}} for variables." />
               <div>
@@ -239,8 +303,8 @@ function TemplatesContent() {
               </div>
 
               <div className="flex gap-2 pt-1">
-                <Button type="submit" loading={saving}>Submit for Review</Button>
-                <Button type="button" variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
+                <Button type="submit" loading={saving}>{editTarget ? "Save Changes" : "Submit for Review"}</Button>
+                <Button type="button" variant="secondary" onClick={() => { setShowForm(false); setEditTarget(null); }}>Cancel</Button>
               </div>
             </form>
           </CardContent>
@@ -331,6 +395,16 @@ function TemplatesContent() {
                     >
                       <Eye className="size-4" aria-hidden="true" />
                     </button>
+                    {(template.status === "APPROVED" || template.status === "REJECTED") && (
+                      <button
+                        type="button"
+                        onClick={() => startEdit(template)}
+                        aria-label={`Edit ${template.name}`}
+                        className="p-1.5 text-warm-500 hover:text-near-black rounded transition-colors"
+                      >
+                        <Pencil className="size-4" aria-hidden="true" />
+                      </button>
+                    )}
                     <a
                       href="https://business.facebook.com/wa/manage/message-templates/"
                       target="_blank"

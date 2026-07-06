@@ -12,7 +12,7 @@ import { notify } from "@/hooks/use-toast";
 import { useSessionMode } from "@/lib/session-mode";
 import { useWhatsAppConfig } from "@/hooks/use-whatsapp-config";
 import { getBroadcastStore } from "@/lib/stores";
-import { messagesApi } from "@/lib/whatsapp";
+import { messagesApi, parseGraphError } from "@/lib/whatsapp";
 import { META_TIER_LIMITS, ROUTES, BROADCAST_SAFETY_CHECK_THRESHOLD } from "@/lib/constants";
 import type { BroadcastRecord, BroadcastRecipientRecord } from "@/lib/stores";
 import Link from "next/link";
@@ -23,6 +23,7 @@ const STATUS_VARIANT: Record<string, "success" | "warning" | "danger" | "default
   paused: "warning",
   failed: "danger",
   draft: "default",
+  scheduled: "warning",
 };
 
 export default function BroadcastsPage() {
@@ -41,6 +42,11 @@ export default function BroadcastsPage() {
   } | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const runningRef = useRef<{ broadcastId: string; cancel: boolean } | null>(null);
+  // Mirror `expanded` in a ref so the long-lived send loop can tell, on each
+  // iteration, whether a recipient panel is still open without being closed
+  // over a stale value.
+  const expandedRef = useRef<string | null>(null);
+  useEffect(() => { expandedRef.current = expanded; }, [expanded]);
 
   const load = useCallback(async () => {
     if (mode === "loading") return;
@@ -126,6 +132,14 @@ export default function BroadcastsPage() {
   async function handleRun(broadcast: BroadcastRecord) {
     if (!activeConfig) { notify.error("No active config selected"); return; }
 
+    // runningRef/runningId are single-valued: this tab can only drive one send
+    // loop at a time. Starting a second would orphan the first (no pause, wrong
+    // indicator), so refuse until the current one is paused.
+    if (runningRef.current) {
+      notify.error("Another broadcast is already sending in this tab — pause it first.");
+      return;
+    }
+
     const store = getBroadcastStore(storeMode);
     const recipientList = await store.getRecipients(broadcast.id);
     const pending = recipientList.filter((r) => r.status === "pending" || r.status === "failed");
@@ -172,6 +186,16 @@ export default function BroadcastsPage() {
     await store.updateBroadcastStatus(broadcast.id, "running");
     void load();
 
+    // `load()` only refreshes broadcast summaries; the expanded recipient table
+    // reads from `recipientsByBroadcast`, so refresh that too whenever this
+    // broadcast's panel is open — otherwise rows stay "pending" during the run.
+    const refreshRecipientsIfExpanded = async () => {
+      if (expandedRef.current !== broadcast.id) return;
+      const rows = await store.getRecipients(broadcast.id);
+      setRecipientsByBroadcast((prev) => ({ ...prev, [broadcast.id]: rows }));
+    };
+    await refreshRecipientsIfExpanded();
+
     // Recipients being retried that previously failed must leave the failed
     // tally up front, or a retry double-counts them. They're re-added below
     // only if they fail again — and a now-successful retry correctly nets down.
@@ -186,21 +210,39 @@ export default function BroadcastsPage() {
         type?: string;
         text?: { body?: string };
         template?: { name?: string; language?: { code?: string }; components?: unknown[] };
+        media?: { kind?: "image" | "video" | "document"; id?: string; link?: string; caption?: string };
+        interactive?: Record<string, unknown>;
       };
 
-      const result = broadcastPayload.type === "template" && broadcastPayload.template?.name
-        ? await messagesApi.sendTemplate(
-            activeConfig,
-            recipient.phone,
-            broadcastPayload.template.name,
-            broadcastPayload.template.language?.code ?? "en",
-            (broadcastPayload.template.components ?? []) as Record<string, unknown>[],
-          )
-        : await messagesApi.sendText(
-            activeConfig,
-            recipient.phone,
-            broadcastPayload.text?.body ?? "",
-          );
+      let result;
+      if (broadcastPayload.type === "template" && broadcastPayload.template?.name) {
+        result = await messagesApi.sendTemplate(
+          activeConfig,
+          recipient.phone,
+          broadcastPayload.template.name,
+          broadcastPayload.template.language?.code ?? "en",
+          (broadcastPayload.template.components ?? []) as Record<string, unknown>[],
+        );
+      } else if (broadcastPayload.type === "media" && broadcastPayload.media) {
+        const { kind = "image", id, link, caption } = broadcastPayload.media;
+        result = await messagesApi.sendMedia(activeConfig, recipient.phone, kind, {
+          ...(id ? { id } : {}),
+          ...(link ? { link } : {}),
+          ...(caption ? { caption } : {}),
+        });
+      } else if (broadcastPayload.type === "interactive" && broadcastPayload.interactive) {
+        result = await messagesApi.sendInteractiveButtons(
+          activeConfig,
+          recipient.phone,
+          broadcastPayload.interactive,
+        );
+      } else {
+        result = await messagesApi.sendText(
+          activeConfig,
+          recipient.phone,
+          broadcastPayload.text?.body ?? "",
+        );
+      }
 
       if (result.ok) {
         sent++;
@@ -209,12 +251,13 @@ export default function BroadcastsPage() {
         await store.updateBroadcastStatus(broadcast.id, "running", { sentCount: sent, failedCount: failed });
       } else {
         failed++;
-        const errMsg = (result.data as { error?: { message?: string } })?.error?.message ?? "Send failed";
+        const errMsg = parseGraphError(result.data, "Send failed");
         await store.updateRecipientStatus(recipient.id, "failed", undefined, errMsg);
         await store.updateBroadcastStatus(broadcast.id, "running", { sentCount: sent, failedCount: failed });
       }
 
       void load();
+      await refreshRecipientsIfExpanded();
       await new Promise((res) => setTimeout(res, broadcast.rateLimitMs));
     }
 
@@ -223,6 +266,7 @@ export default function BroadcastsPage() {
     runningRef.current = null;
     setRunningId(null);
     void load();
+    await refreshRecipientsIfExpanded();
     if (finalStatus === "completed") {
       notify.success(`Broadcast complete. ${sent} sent, ${failed} failed.`);
     } else {
@@ -369,7 +413,7 @@ export default function BroadcastsPage() {
                             <th className="px-3 py-2 text-left font-medium text-warm-500">Name</th>
                             <th className="px-3 py-2 text-left font-medium text-warm-500">Phone</th>
                             <th className="px-3 py-2 text-left font-medium text-warm-500">Status</th>
-                            <th className="px-3 py-2 text-left font-medium text-warm-500 hidden sm:table-cell">Message ID</th>
+                            <th className="px-3 py-2 text-left font-medium text-warm-500 hidden sm:table-cell">Message ID / Error</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-black/5">
@@ -382,7 +426,13 @@ export default function BroadcastsPage() {
                                   {r.status}
                                 </Badge>
                               </td>
-                              <td className="px-3 py-2 font-mono text-warm-500 hidden sm:table-cell truncate max-w-[120px]">{r.waMessageId ?? "—"}</td>
+                              <td className="px-3 py-2 hidden sm:table-cell max-w-[220px]">
+                                {r.status === "failed" && r.error ? (
+                                  <span className="text-danger" title={r.error}>{r.error}</span>
+                                ) : (
+                                  <span className="font-mono text-warm-500 block truncate">{r.waMessageId ?? "—"}</span>
+                                )}
+                              </td>
                             </tr>
                           ))}
                         </tbody>
