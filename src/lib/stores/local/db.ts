@@ -5,7 +5,7 @@ import { openDB, type IDBPDatabase } from "idb";
 const DB_NAME = "whatsapp-api-manager";
 // Bump version whenever new object stores are added; include all prior stores
 // in upgrade() so fresh installs don't miss them.
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
@@ -74,6 +74,15 @@ export function getLocalDb(): Promise<IDBPDatabase> {
           const rules = db.createObjectStore("autoReplyRules", { keyPath: "id" });
           rules.createIndex("configId", "configId");
           rules.createIndex("priority", "priority");
+        }
+
+        if (oldVersion < 3) {
+          // Local log of media uploaded through the app. Meta has no "list
+          // media" endpoint, so this is how the library/pickers know what
+          // exists. Keyed by the Meta media id.
+          const media = db.createObjectStore("mediaAssets", { keyPath: "id" });
+          media.createIndex("configId", "configId");
+          media.createIndex("createdAt", "createdAt");
         }
       },
     });
